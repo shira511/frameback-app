@@ -1,0 +1,88 @@
+export interface User {
+  id: string;
+  email?: string;
+  fullName: string;
+  avatarUrl: string;
+}
+
+export interface Project {
+  id: string;
+  title: string;
+  description: string | null;
+  videoUrl: string;
+  createdAt: string;
+  userId: string;
+}
+
+export interface DrawingData {
+  lines: Line[];
+  strokeWidth: number;
+  strokeColor: string;
+}
+
+export interface Line {
+  points: Point[];
+  strokeWidth: number;
+  strokeColor: string;
+}
+
+export interface Point {
+  x: number;
+  y: number;
+}
+
+export interface Feedback {
+  id: string;
+  projectId: string;
+  userId: string;
+  user?: User;
+  timestamp: number;
+  comment: string;
+  drawingData: DrawingData | null;
+  isChecked: boolean;
+  createdAt: string;
+  reactions: Reaction[];
+  replies: Reply[];
+}
+
+export interface Reply {
+  id: string;
+  feedbackId: string;
+  userId: string;
+  user?: User;
+  comment: string;
+  createdAt: string;
+}
+
+export interface Reaction {
+  id: string;
+  feedbackId: string;
+  userId: string;
+  emoji: string;
+  createdAt: string;
+}
+
+export interface VideoPlayerProps {
+  videoId: string;
+  onTimeUpdate: (currentTime: number) => void;
+  onVideoReady: () => void;
+  onPlay: () => void;
+  onPause: () => void;
+  timeToSeek?: number | null;
+}
+
+export interface TimelineProps {
+  duration: number;
+  currentTime: number;
+  feedback: Feedback[];
+  onSeek: (time: number) => void;
+}
+
+export interface VideoState {
+  isPlaying: boolean;
+  currentTime: number;
+  duration: number;
+  playbackRate: number;
+}
+
+export type FilterOption = 'all' | 'unchecked' | 'mine';
