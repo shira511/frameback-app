@@ -71,7 +71,7 @@ const NewProject: React.FC = () => {
     } else {
       console.log("✅ normalizedUrl received:", url);
       const youtubeRegex = /^https:\/\/www\.youtube\.com\/watch\?v=[\w-]{11}$/;
-      if (!youtubeRegex.test(normalizedUrl)) {
+      if (!youtubeRegex.test(url)) {
         newErrors.videoUrl = 'Please enter a valid YouTube URL';
       }
     }
