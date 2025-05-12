@@ -93,11 +93,12 @@ const NewProject: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+    console.log("🚀 handleSubmit called");
     if (!validateForm()) {
+      console.log("❌ Validation failed");
       return;
     }
-    
+    console.log("✅ Validation passed");
     try {
       setIsSubmitting(true);
       setGeneralError(null);
