@@ -8,34 +8,38 @@ import { ArrowLeft } from 'lucide-react';
 
 const normalizeYouTubeUrl = (url: string): string => {
   try {
+    // Extract video ID from various URL formats
+    let videoId: string | null = null;
+
+    // Create URL object (handles relative URLs by prepending protocol if needed)
+    const fullUrl = url.startsWith('http') ? url : `https://${url}`;
+    const urlObj = new URL(fullUrl);
+
     // Handle youtu.be URLs
-    if (url.includes('youtu.be/')) {
-      const videoId = url.split('youtu.be/')[1].split(/[#?]/)[0];
+    if (urlObj.hostname === 'youtu.be') {
+      videoId = urlObj.pathname.slice(1);
+    }
+    // Handle youtube.com URLs
+    else if (urlObj.hostname === 'youtube.com' || urlObj.hostname === 'www.youtube.com') {
+      // Get video ID from query parameter
+      videoId = urlObj.searchParams.get('v');
+
+      // Handle /v/ format
+      if (!videoId && urlObj.pathname.startsWith('/v/')) {
+        videoId = urlObj.pathname.slice(3);
+      }
+      // Handle /embed/ format
+      else if (!videoId && urlObj.pathname.startsWith('/embed/')) {
+        videoId = urlObj.pathname.slice(7);
+      }
+    }
+
+    // Clean up video ID by removing any remaining query parameters or hash
+    if (videoId) {
+      videoId = videoId.split(/[#?]/)[0];
       return `https://www.youtube.com/watch?v=${videoId}`;
     }
-    
-    // Handle youtube.com URLs
-    if (url.includes('youtube.com/')) {
-      const urlObj = new URL(url);
-      const videoId = urlObj.searchParams.get('v');
-      
-      // Handle youtube.com/v/ format
-      if (!videoId && url.includes('/v/')) {
-        const pathVideoId = url.split('/v/')[1].split(/[#?]/)[0];
-        return `https://www.youtube.com/watch?v=${pathVideoId}`;
-      }
-      
-      // Handle youtube.com/embed/ format
-      if (!videoId && url.includes('/embed/')) {
-        const embedVideoId = url.split('/embed/')[1].split(/[#?]/)[0];
-        return `https://www.youtube.com/watch?v=${embedVideoId}`;
-      }
-      
-      if (videoId) {
-        return `https://www.youtube.com/watch?v=${videoId}`;
-      }
-    }
-    
+
     // Return original URL if no transformation needed
     return url;
   } catch (e) {
@@ -66,8 +70,8 @@ const NewProject: React.FC = () => {
       newErrors.videoUrl = 'Video URL is required';
     } else {
       const normalizedUrl = normalizeYouTubeUrl(videoUrl);
-      // Validate the normalized URL
-      const youtubeRegex = /^(https?:\/\/)?(www\.)?(youtube\.com\/watch\?v=)([a-zA-Z0-9_-]{11})$/;
+      // Validate the normalized URL format
+      const youtubeRegex = /^https?:\/\/(www\.)?youtube\.com\/watch\?v=[a-zA-Z0-9_-]{11}$/;
       if (!youtubeRegex.test(normalizedUrl)) {
         newErrors.videoUrl = 'Please enter a valid YouTube URL';
       }
@@ -79,9 +83,8 @@ const NewProject: React.FC = () => {
 
   const extractYouTubeId = (url: string): string | null => {
     const normalizedUrl = normalizeYouTubeUrl(url);
-    const regExp = /^.*(youtube\.com\/watch\?v=)([^#&?]*).*/;
-    const match = normalizedUrl.match(regExp);
-    return (match && match[2].length === 11) ? match[2] : null;
+    const match = normalizedUrl.match(/youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})/);
+    return match ? match[1] : null;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
