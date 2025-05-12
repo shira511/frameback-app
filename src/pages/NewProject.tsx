@@ -70,9 +70,12 @@ const NewProject: React.FC = () => {
       newErrors.videoUrl = 'Video URL is required';
     } else {
       const normalizedUrl = normalizeYouTubeUrl(videoUrl.trim());
+
+      console.log("Original:", videoUrl);
+      console.log("Normalized:", normalizedUrl);
       
       // Check for both youtube.com and youtu.be formats
-      const youtubeRegex = /^https?:\/\/((?:www\.)?youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
+      const youtubeRegex = /^https:\/\/www\.youtube\.com\/watch\?v=[\w-]{11}(&.*)?$/;
       if (!youtubeRegex.test(normalizedUrl)) {
         newErrors.videoUrl = 'Please enter a valid YouTube URL';
       }
