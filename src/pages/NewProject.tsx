@@ -59,23 +59,18 @@ const NewProject: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  const validateForm = () => {
+  const validateForm = (url: string) => {
     const newErrors: { [key: string]: string } = {};
     
     if (!title.trim()) {
       newErrors.title = 'Title is required';
     }
     
-    if (!videoUrl.trim()) {
+    if (!url.trim()) {
       newErrors.videoUrl = 'Video URL is required';
     } else {
-      const normalizedUrl = normalizeYouTubeUrl(videoUrl.trim());
-
-      console.log("Original:", videoUrl);
-      console.log("Normalized:", normalizedUrl);
-      
-      // Check for both youtube.com and youtu.be formats
-      const youtubeRegex = /^https:\/\/www\.youtube\.com\/watch\?v=[\w-]{11}(&.*)?$/;
+      const normalizedUrl = normalizeYouTubeUrl(url);
+      const youtubeRegex = /^https:\/\/www\.youtube\.com\/watch\?v=[\w-]{11}$/;
       if (!youtubeRegex.test(normalizedUrl)) {
         newErrors.videoUrl = 'Please enter a valid YouTube URL';
       }
@@ -93,12 +88,12 @@ const NewProject: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("🚀 handleSubmit called");
-    if (!validateForm()) {
-      console.log("❌ Validation failed");
+    
+    const normalizedUrl = normalizeYouTubeUrl(videoUrl.trim());
+    if (!validateForm(normalizedUrl)) {
       return;
     }
-    console.log("✅ Validation passed");
+    
     try {
       setIsSubmitting(true);
       setGeneralError(null);
@@ -106,8 +101,6 @@ const NewProject: React.FC = () => {
       if (!user) {
         throw new Error('You must be logged in to create a project');
       }
-      
-      const normalizedUrl = normalizeYouTubeUrl(videoUrl.trim());
       
       const youtubeId = extractYouTubeId(normalizedUrl);
       if (!youtubeId) {
@@ -140,13 +133,6 @@ const NewProject: React.FC = () => {
       setGeneralError('Failed to create project. Please try again.');
     } finally {
       setIsSubmitting(false);
-    }
-  };
-
-  const handleUrlBlur = () => {
-    if (videoUrl.trim()) {
-      const normalizedUrl = normalizeYouTubeUrl(videoUrl.trim());
-      setVideoUrl(normalizedUrl);
     }
   };
   
@@ -215,7 +201,6 @@ const NewProject: React.FC = () => {
                 id="videoUrl"
                 value={videoUrl}
                 onChange={(e) => setVideoUrl(e.target.value)}
-                onBlur={handleUrlBlur}
                 className={`w-full p-2 bg-slate-700 border ${
                   errors.videoUrl ? 'border-error-500' : 'border-slate-600'
                 } rounded-md text-white focus:outline-none focus:ring-2 focus:ring-primary-500`}
