@@ -1,4 +1,5 @@
-console.log("🟢 NewProject component rendered");
+console.log("✅ [NewProject.tsx] is rendering now!");
+alert("🟢 [NewProject.tsx] is now active.");
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
