@@ -49,6 +49,7 @@ const normalizeYouTubeUrl = (url: string): string => {
 };
 
 const NewProject: React.FC = () => {
+  console.log("🟢 NewProject component rendered");
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [videoUrl, setVideoUrl] = useState('');
@@ -60,6 +61,7 @@ const NewProject: React.FC = () => {
   const navigate = useNavigate();
 
   const validateForm = (url: string) => {
+    console.log("🔵 validateForm called with:", url);
     const newErrors: { [key: string]: string } = {};
     
     if (!title.trim()) {
@@ -87,6 +89,7 @@ const NewProject: React.FC = () => {
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
+    console.log("🟡 handleSubmit called");
     e.preventDefault();
     
     const normalizedUrl = normalizeYouTubeUrl(videoUrl.trim());
@@ -103,6 +106,7 @@ const NewProject: React.FC = () => {
       }
       
       const youtubeId = extractYouTubeId(normalizedUrl);
+      console.log("🎥 Extracting video ID from:", normalizedUrl);
       if (!youtubeId) {
         setErrors({
           ...errors,
