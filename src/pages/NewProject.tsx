@@ -6,6 +6,44 @@ import AppLayout from '../components/layouts/AppLayout';
 import Button from '../components/ui/Button';
 import { ArrowLeft } from 'lucide-react';
 
+const normalizeYouTubeUrl = (url: string): string => {
+  try {
+    // Handle youtu.be URLs
+    if (url.includes('youtu.be/')) {
+      const videoId = url.split('youtu.be/')[1].split(/[#?]/)[0];
+      return `https://www.youtube.com/watch?v=${videoId}`;
+    }
+    
+    // Handle youtube.com URLs
+    if (url.includes('youtube.com/')) {
+      const urlObj = new URL(url);
+      const videoId = urlObj.searchParams.get('v');
+      
+      // Handle youtube.com/v/ format
+      if (!videoId && url.includes('/v/')) {
+        const pathVideoId = url.split('/v/')[1].split(/[#?]/)[0];
+        return `https://www.youtube.com/watch?v=${pathVideoId}`;
+      }
+      
+      // Handle youtube.com/embed/ format
+      if (!videoId && url.includes('/embed/')) {
+        const embedVideoId = url.split('/embed/')[1].split(/[#?]/)[0];
+        return `https://www.youtube.com/watch?v=${embedVideoId}`;
+      }
+      
+      if (videoId) {
+        return `https://www.youtube.com/watch?v=${videoId}`;
+      }
+    }
+    
+    // Return original URL if no transformation needed
+    return url;
+  } catch (e) {
+    // If URL parsing fails, return original URL
+    return url;
+  }
+};
+
 const NewProject: React.FC = () => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -27,9 +65,10 @@ const NewProject: React.FC = () => {
     if (!videoUrl.trim()) {
       newErrors.videoUrl = 'Video URL is required';
     } else {
-      // Simple YouTube URL validation - could be expanded for other platforms
-      const youtubeRegex = /^(https?:\/\/)?(www\.)?(youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})$/;
-      if (!youtubeRegex.test(videoUrl)) {
+      const normalizedUrl = normalizeYouTubeUrl(videoUrl);
+      // Validate the normalized URL
+      const youtubeRegex = /^(https?:\/\/)?(www\.)?(youtube\.com\/watch\?v=)([a-zA-Z0-9_-]{11})$/;
+      if (!youtubeRegex.test(normalizedUrl)) {
         newErrors.videoUrl = 'Please enter a valid YouTube URL';
       }
     }
@@ -39,8 +78,9 @@ const NewProject: React.FC = () => {
   };
 
   const extractYouTubeId = (url: string): string | null => {
-    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
-    const match = url.match(regExp);
+    const normalizedUrl = normalizeYouTubeUrl(url);
+    const regExp = /^.*(youtube\.com\/watch\?v=)([^#&?]*).*/;
+    const match = normalizedUrl.match(regExp);
     return (match && match[2].length === 11) ? match[2] : null;
   };
 
@@ -59,7 +99,8 @@ const NewProject: React.FC = () => {
         throw new Error('You must be logged in to create a project');
       }
       
-      const youtubeId = extractYouTubeId(videoUrl);
+      const normalizedUrl = normalizeYouTubeUrl(videoUrl);
+      const youtubeId = extractYouTubeId(normalizedUrl);
       if (!youtubeId) {
         setErrors({
           ...errors,
@@ -73,7 +114,7 @@ const NewProject: React.FC = () => {
         .insert({
           title,
           description: description || null,
-          video_url: videoUrl,
+          video_url: normalizedUrl,
           user_id: user.id
         })
         .select()
@@ -167,7 +208,7 @@ const NewProject: React.FC = () => {
                 <p className="mt-1 text-sm text-error-500">{errors.videoUrl}</p>
               )}
               <p className="mt-1 text-sm text-slate-400">
-                Currently supporting YouTube videos only
+                Supports various YouTube URL formats (youtube.com, youtu.be, embed links)
               </p>
             </div>
             
