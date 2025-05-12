@@ -158,7 +158,7 @@ const NewProject: React.FC = () => {
         </div>
         
         <div className="bg-slate-800 rounded-lg shadow-lg p-6">
-          <h1 className="text-2xl font-bold text-white mb-6">Create New Project</h1>
+          <h1 className="text-2xl font-bold text-white mb-6"> 🚨 This is the latest version of NewProject.tsx</h1>
           
           {generalError && (
             <div className="bg-error-500 bg-opacity-10 border border-error-500 text-error-500 p-4 rounded-md mb-6">
