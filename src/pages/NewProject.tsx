@@ -71,10 +71,6 @@ const NewProject: React.FC = () => {
     } else {
       const normalizedUrl = normalizeYouTubeUrl(videoUrl.trim());
       setVideoUrl(normalizedUrl); // Update state with normalized URL
-      // Updated regex to allow additional parameters after video ID
-
-       console.log('Raw URL:', videoUrl);
-       console.log('Normalized URL:', normalizedUrl);
       
       const youtubeRegex = /^https?:\/\/(www\.)?youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})/;
       if (!youtubeRegex.test(normalizedUrl)) {
