@@ -10,7 +10,7 @@ import FeedbackForm from '../components/FeedbackForm';
 import DrawingCanvas from '../components/DrawingCanvas';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import Button from '../components/ui/Button';
-import { ArrowLeft, Pause, Play, Plus, SkipBack, SkipForward, Slash } from 'lucide-react';
+import { ArrowLeft, Pause, Play, SkipBack, SkipForward, Plus } from 'lucide-react';
 import type { Project, Feedback, DrawingData, FilterOption } from '../types';
 
 const ProjectView: React.FC = () => {
@@ -53,9 +53,43 @@ const ProjectView: React.FC = () => {
   
   // Extract YouTube video ID from URL
   const extractYouTubeId = (url: string): string | null => {
-    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
-    const match = url.match(regExp);
-    return (match && match[2].length === 11) ? match[2] : null;
+    try {
+      // Create URL object (handles relative URLs by prepending protocol if needed)
+      const fullUrl = url.startsWith('http') ? url : `https://${url}`;
+      const urlObj = new URL(fullUrl);
+      
+      let videoId: string | null = null;
+      
+      // Handle youtu.be URLs
+      if (urlObj.hostname === 'youtu.be') {
+        videoId = urlObj.pathname.slice(1);
+      }
+      // Handle youtube.com URLs
+      else if (urlObj.hostname === 'youtube.com' || urlObj.hostname === 'www.youtube.com') {
+        // Get video ID from query parameter
+        videoId = urlObj.searchParams.get('v');
+        
+        // Handle /v/ format
+        if (!videoId && urlObj.pathname.startsWith('/v/')) {
+          videoId = urlObj.pathname.slice(3);
+        }
+        // Handle /embed/ format
+        else if (!videoId && urlObj.pathname.startsWith('/embed/')) {
+          videoId = urlObj.pathname.slice(7);
+        }
+      }
+      
+      // Clean up video ID by removing any remaining query parameters or hash
+      if (videoId) {
+        videoId = videoId.split(/[#?]/)[0];
+        return videoId.length === 11 ? videoId : null;
+      }
+      
+      return null;
+    } catch (e) {
+      console.error('Error parsing YouTube URL:', e);
+      return null;
+    }
   };
   
   // Fetch project and initial feedback
