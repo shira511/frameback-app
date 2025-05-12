@@ -102,7 +102,9 @@ const NewProject: React.FC = () => {
         throw new Error('You must be logged in to create a project');
       }
       
-      const normalizedUrl = normalizeYouTubeUrl(videoUrl);
+      const normalizedUrl = normalizeYouTubeUrl(videoUrl.trim());
+      setVideoUrl(normalizedUrl); // Update the state with normalized URL
+      
       const youtubeId = extractYouTubeId(normalizedUrl);
       if (!youtubeId) {
         setErrors({
@@ -134,6 +136,13 @@ const NewProject: React.FC = () => {
       setGeneralError('Failed to create project. Please try again.');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleUrlBlur = () => {
+    if (videoUrl.trim()) {
+      const normalizedUrl = normalizeYouTubeUrl(videoUrl.trim());
+      setVideoUrl(normalizedUrl);
     }
   };
   
@@ -202,6 +211,7 @@ const NewProject: React.FC = () => {
                 id="videoUrl"
                 value={videoUrl}
                 onChange={(e) => setVideoUrl(e.target.value)}
+                onBlur={handleUrlBlur}
                 className={`w-full p-2 bg-slate-700 border ${
                   errors.videoUrl ? 'border-error-500' : 'border-slate-600'
                 } rounded-md text-white focus:outline-none focus:ring-2 focus:ring-primary-500`}
