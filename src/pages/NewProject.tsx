@@ -60,6 +60,7 @@ const NewProject: React.FC = () => {
   const navigate = useNavigate();
 
   const validateForm = (url: string) => {
+    alert("validateForm CALLED!");
     console.log("🟡 raw url received in validateForm:", url);
     
     const newErrors: { [key: string]: string } = {};
