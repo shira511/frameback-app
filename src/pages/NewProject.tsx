@@ -82,6 +82,7 @@ const NewProject: React.FC = () => {
   // SUBMIT HANDLER
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    alert('★ handleSubmit が呼ばれました ★');
     console.log(`${LOG_PREFIX.SUBMIT} handleSubmit fired, videoUrl=`, videoUrl);
     
     if (!validateForm(videoUrl)) {
@@ -147,7 +148,7 @@ const NewProject: React.FC = () => {
         </div>
         
         <div className="bg-slate-800 rounded-lg shadow-lg p-6">
-          <h1 className="text-2xl font-bold text-white mb-6">Create New Project</h1>
+          <h1 className="text-2xl font-bold text-white mb-6">Create New Project — デバッグ中</h1>
           
           {generalError && (
             <div className="bg-error-500 bg-opacity-10 border border-error-500 text-error-500 p-4 rounded-md mb-6">
