@@ -6,53 +6,40 @@ import AppLayout from '../components/layouts/AppLayout';
 import Button from '../components/ui/Button';
 import { ArrowLeft } from 'lucide-react';
 
-const normalizeYouTubeUrl = (url: string): string => {
-  try {
-    // Extract video ID from various URL formats
-    let videoId: string | null = null;
-
-    // Create URL object (handles relative URLs by prepending protocol if needed)
-    const fullUrl = url.startsWith('http') ? url : `https://${url}`;
-    const urlObj = new URL(fullUrl);
-
-    // Handle youtu.be URLs
-    if (urlObj.hostname === 'youtu.be') {
-      videoId = urlObj.pathname.slice(1);
-    }
-    // Handle youtube.com URLs
-    else if (urlObj.hostname === 'youtube.com' || urlObj.hostname === 'www.youtube.com') {
-      // Get video ID from query parameter
-      videoId = urlObj.searchParams.get('v');
-
-      // Handle /v/ format
-      if (!videoId && urlObj.pathname.startsWith('/v/')) {
-        videoId = urlObj.pathname.slice(3);
-      }
-      // Handle /embed/ format
-      else if (!videoId && urlObj.pathname.startsWith('/embed/')) {
-        videoId = urlObj.pathname.slice(7);
-      }
-    }
-
-    // Clean up video ID by removing any remaining query parameters or hash
-    if (videoId) {
-      videoId = videoId.split(/[#?]/)[0];
-      return `https://www.youtube.com/watch?v=${videoId}`;
-    }
-
-    // Return original URL if no transformation needed
-    return url;
-  } catch (e) {
-    // If URL parsing fails, return original URL
-    return url;
-  }
+// LOGGING CONFIGURATION
+const LOG_PREFIX = {
+  NORMALIZE: '▶',
+  VALIDATE_RAW: '🟡',
+  VALIDATE_NORM: '🔵',
+  VALIDATE_ID: '🎥',
+  SUBMIT: '🔴'
 };
 
-const extractYouTubeId = (url: string): string | null => {
+// URL CLEANING
+function normalizeYouTubeUrl(url: string): string {
+  const raw = url.trim();
+  const cleanUrl = raw
+    .replace(/([?&])si=[^&]*/, '') // Remove si parameter
+    .replace(/([?&])$/, '');       // Clean trailing separators
+  
+  console.log(`${LOG_PREFIX.NORMALIZE} normalizeYouTubeUrl input=`, raw, ' cleaned=', cleanUrl);
+  return cleanUrl;
+}
+
+// ID EXTRACTION
+function extractYouTubeId(url: string): string | null {
   const normalizedUrl = normalizeYouTubeUrl(url);
-  const match = normalizedUrl.match(/youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})/);
+  const YOUTUBE_ID_REGEX = new RegExp([
+    '^(?:https?://)?(?:www\\.)?',
+    '(?:youtube\\.com/(?:(?:watch\\?v=)|(?:embed/)|(?:v/)|(?:shorts/))|youtu\\.be/)',
+    '([A-Za-z0-9_-]{11})',
+    '(?:[?&#].*)?$'
+  ].join(''));
+  
+  const match = normalizedUrl.match(YOUTUBE_ID_REGEX);
+  console.log(`${LOG_PREFIX.NORMALIZE} extractYouTubeId on`, normalizedUrl, '=>', match?.[1] ?? null);
   return match ? match[1] : null;
-};
+}
 
 const NewProject: React.FC = () => {
   const [title, setTitle] = useState('');
@@ -65,8 +52,9 @@ const NewProject: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  const validateForm = (url: string) => {
-    console.log("🟡 Raw input URL:", url);
+  // FORM VALIDATION
+  const validateForm = (url: string): boolean => {
+    console.log(`${LOG_PREFIX.VALIDATE_RAW} validateForm raw=`, url);
     const newErrors: { [key: string]: string } = {};
     
     if (!title.trim()) {
@@ -74,14 +62,13 @@ const NewProject: React.FC = () => {
     }
     
     if (!url.trim()) {
-      console.log("🔴 URL is empty after trim");
+      console.log(`${LOG_PREFIX.VALIDATE_RAW} URL is empty after trim`);
       newErrors.videoUrl = 'Video URL is required';
     } else {
-      const normalizedUrl = normalizeYouTubeUrl(url.trim());
-      console.log("🔵 Normalized URL:", normalizedUrl);
-      
-      const videoId = extractYouTubeId(normalizedUrl);
-      console.log("🎥 Extracted video ID:", videoId);
+      const normalized = normalizeYouTubeUrl(url);
+      console.log(`${LOG_PREFIX.VALIDATE_NORM} validateForm normalized=`, normalized);
+      const videoId = extractYouTubeId(normalized);
+      console.log(`${LOG_PREFIX.VALIDATE_ID} validateForm videoId=`, videoId);
       
       if (!videoId) {
         newErrors.videoUrl = 'Please enter a valid YouTube URL';
@@ -92,10 +79,13 @@ const NewProject: React.FC = () => {
     return Object.keys(newErrors).length === 0;
   };
 
+  // SUBMIT HANDLER
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log(`${LOG_PREFIX.SUBMIT} handleSubmit fired, videoUrl=`, videoUrl);
     
     if (!validateForm(videoUrl)) {
+      console.log(`${LOG_PREFIX.SUBMIT} validateForm returned false, abort submit`);
       return;
     }
     
@@ -107,7 +97,7 @@ const NewProject: React.FC = () => {
         throw new Error('You must be logged in to create a project');
       }
       
-      const normalizedUrl = normalizeYouTubeUrl(videoUrl.trim());
+      const normalizedUrl = normalizeYouTubeUrl(videoUrl);
       const youtubeId = extractYouTubeId(normalizedUrl);
       
       if (!youtubeId) {
