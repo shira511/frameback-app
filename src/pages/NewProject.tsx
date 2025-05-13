@@ -1,5 +1,3 @@
-console.log("✅ [NewProject.tsx] is rendering now!");
-alert("🟢 [NewProject.tsx] is now active.");
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -51,7 +49,6 @@ const normalizeYouTubeUrl = (url: string): string => {
 };
 
 const NewProject: React.FC = () => {
-  console.log("🟢 NewProject component rendered");
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [videoUrl, setVideoUrl] = useState('');
@@ -63,7 +60,10 @@ const NewProject: React.FC = () => {
   const navigate = useNavigate();
 
   const validateForm = (url: string) => {
-    console.log("🔵 validateForm called with:", url);
+    console.log("🟡 validateForm called with:", url);
+    const normalizedUrl = normalizeYouTubeUrl(url.trim());
+    console.log("🔵 normalizedUrl (after normalizeYouTubeUrl):", normalizedUrl);
+    
     const newErrors: { [key: string]: string } = {};
     
     if (!title.trim()) {
@@ -73,12 +73,11 @@ const NewProject: React.FC = () => {
     if (!url.trim()) {
       newErrors.videoUrl = 'Video URL is required';
     } else {
-      console.log("✅ normalizedUrl (actual):", url);
       const youtubeRegex = /^https:\/\/www\.youtube\.com\/watch\?v=[\w-]{11}(&.*)?$/;
-      const match = youtubeRegex.test(url);
-      console.log("🧪 regex test result:", match);
+      const isValid = youtubeRegex.test(normalizedUrl);
+      console.log("🧪 regex match result:", isValid);
       
-      if (!match) {
+      if (!isValid) {
         newErrors.videoUrl = 'Please enter a valid YouTube URL';
       }
     }
@@ -94,7 +93,6 @@ const NewProject: React.FC = () => {
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    console.log("🟡 handleSubmit called");
     e.preventDefault();
     
     const normalizedUrl = normalizeYouTubeUrl(videoUrl.trim());
@@ -111,7 +109,6 @@ const NewProject: React.FC = () => {
       }
       
       const youtubeId = extractYouTubeId(normalizedUrl);
-      console.log("🎥 Extracting video ID from:", normalizedUrl);
       if (!youtubeId) {
         setErrors({
           ...errors,
@@ -159,7 +156,7 @@ const NewProject: React.FC = () => {
         </div>
         
         <div className="bg-slate-800 rounded-lg shadow-lg p-6">
-          <h1 className="text-2xl font-bold text-white mb-6"> 🚨 This is the latest version of NewProject.tsx</h1>
+          <h1 className="text-2xl font-bold text-white mb-6">Create New Project</h1>
           
           {generalError && (
             <div className="bg-error-500 bg-opacity-10 border border-error-500 text-error-500 p-4 rounded-md mb-6">
