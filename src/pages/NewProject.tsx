@@ -48,6 +48,12 @@ const normalizeYouTubeUrl = (url: string): string => {
   }
 };
 
+const extractYouTubeId = (url: string): string | null => {
+  const normalizedUrl = normalizeYouTubeUrl(url);
+  const match = normalizedUrl.match(/youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})/);
+  return match ? match[1] : null;
+};
+
 const NewProject: React.FC = () => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -60,8 +66,7 @@ const NewProject: React.FC = () => {
   const navigate = useNavigate();
 
   const validateForm = (url: string) => {
-    console.log("🟡 raw url received in validateForm:", url);
-    
+    console.log("🟡 Raw input URL:", url);
     const newErrors: { [key: string]: string } = {};
     
     if (!title.trim()) {
@@ -69,27 +74,22 @@ const NewProject: React.FC = () => {
     }
     
     if (!url.trim()) {
-      console.log("🔴 URL is blank after trim");
+      console.log("🔴 URL is empty after trim");
       newErrors.videoUrl = 'Video URL is required';
     } else {
-      console.log("🔵 testing URL:", url);
-      const youtubeRegex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
-      const match = youtubeRegex.exec(url);
-      console.log("🧪 regex match result:", match);
+      const normalizedUrl = normalizeYouTubeUrl(url.trim());
+      console.log("🔵 Normalized URL:", normalizedUrl);
       
-      if (!match || !match[1]) {
+      const videoId = extractYouTubeId(normalizedUrl);
+      console.log("🎥 Extracted video ID:", videoId);
+      
+      if (!videoId) {
         newErrors.videoUrl = 'Please enter a valid YouTube URL';
       }
     }
     
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
-  };
-
-  const extractYouTubeId = (url: string): string | null => {
-    const normalizedUrl = normalizeYouTubeUrl(url);
-    const match = normalizedUrl.match(/youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})/);
-    return match ? match[1] : null;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
