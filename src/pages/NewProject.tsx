@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../services/supabase';
@@ -42,6 +42,10 @@ function extractYouTubeId(url: string): string | null {
 }
 
 const NewProject: React.FC = () => {
+  useEffect(() => {
+    console.log('🟢 NewProject component mounted');
+  }, []);
+
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [videoUrl, setVideoUrl] = useState('');
@@ -212,14 +216,29 @@ const NewProject: React.FC = () => {
               </p>
             </div>
             
-            <div className="flex justify-end">
+            <div className="flex justify-end space-y-2">
               <Button
                 type="submit"
                 isLoading={isSubmitting}
                 disabled={isSubmitting}
+                onClick={() => { 
+                  alert('★ ボタンがクリックされました ★'); 
+                  console.log('🔵 Button onClick fired'); 
+                }}
               >
                 Create Project
               </Button>
+              
+              <button 
+                type="submit" 
+                className="px-4 py-2 bg-indigo-600 text-white rounded" 
+                onClick={() => { 
+                  alert('★ ネイティブボタンがクリックされました ★'); 
+                  console.log('⚪ Native button onClick fired'); 
+                }}
+              >
+                Create Project
+              </button>
             </div>
           </form>
         </div>
