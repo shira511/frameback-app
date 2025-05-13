@@ -95,8 +95,7 @@ const NewProject: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    const normalizedUrl = normalizeYouTubeUrl(videoUrl.trim());
-    if (!validateForm(normalizedUrl)) {
+    if (!validateForm(videoUrl)) {
       return;
     }
     
@@ -108,6 +107,7 @@ const NewProject: React.FC = () => {
         throw new Error('You must be logged in to create a project');
       }
       
+      const normalizedUrl = normalizeYouTubeUrl(videoUrl.trim());
       const youtubeId = extractYouTubeId(normalizedUrl);
       if (!youtubeId) {
         setErrors({
