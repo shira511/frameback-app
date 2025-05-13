@@ -155,8 +155,8 @@ const NewProject: React.FC = () => {
             </div>
           )}
           
-          <form onSubmit={handleSubmit}>
-            <div className="mb-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
               <label htmlFor="title" className="block text-sm font-medium text-slate-300 mb-1">
                 Project Title <span className="text-error-500">*</span>
               </label>
@@ -175,7 +175,7 @@ const NewProject: React.FC = () => {
               )}
             </div>
             
-            <div className="mb-4">
+            <div>
               <label htmlFor="description" className="block text-sm font-medium text-slate-300 mb-1">
                 Description (Optional)
               </label>
@@ -189,7 +189,7 @@ const NewProject: React.FC = () => {
               />
             </div>
             
-            <div className="mb-6">
+            <div>
               <label htmlFor="videoUrl" className="block text-sm font-medium text-slate-300 mb-1">
                 YouTube Video URL <span className="text-error-500">*</span>
               </label>
