@@ -60,9 +60,7 @@ const NewProject: React.FC = () => {
   const navigate = useNavigate();
 
   const validateForm = (url: string) => {
-    console.log("🟡 validateForm called with:", url);
-    const normalizedUrl = normalizeYouTubeUrl(url.trim());
-    console.log("🔵 normalizedUrl (after normalizeYouTubeUrl):", normalizedUrl);
+    console.log("🟡 raw url received in validateForm:", url);
     
     const newErrors: { [key: string]: string } = {};
     
@@ -71,11 +69,15 @@ const NewProject: React.FC = () => {
     }
     
     if (!url.trim()) {
+      console.log("🔴 URL is blank after trim");
       newErrors.videoUrl = 'Video URL is required';
     } else {
+      const normalizedUrl = normalizeYouTubeUrl(url.trim());
+      console.log("🔵 normalized URL:", normalizedUrl);
+      
       const youtubeRegex = /^https:\/\/www\.youtube\.com\/watch\?v=[\w-]{11}(&.*)?$/;
       const isValid = youtubeRegex.test(normalizedUrl);
-      console.log("🧪 regex match result:", isValid);
+      console.log("🧪 regex test:", isValid);
       
       if (!isValid) {
         newErrors.videoUrl = 'Please enter a valid YouTube URL';
