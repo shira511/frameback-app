@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useLayoutEffect, useState } from 'react';
 import { formatTime } from '../utils/formatTime';
 import type { TimelineProps, Feedback } from '../types';
 
@@ -9,6 +9,8 @@ const VideoTimeline: React.FC<TimelineProps> = ({
   onSeek,
 }) => {
   const timelineRef = useRef<HTMLDivElement>(null);
+  const progressRef = useRef<HTMLDivElement>(null);
+  const playheadRef = useRef<HTMLDivElement>(null);
   const [hoverTime, setHoverTime] = useState<number | null>(null);
   const [hoverPosition, setHoverPosition] = useState<number | null>(null);
   const [activeFeedback, setActiveFeedback] = useState<string | null>(null);
@@ -27,6 +29,13 @@ const VideoTimeline: React.FC<TimelineProps> = ({
     const percentage = relativePosition / rect.width;
     return Math.max(0, Math.min(duration, percentage * duration));
   };
+
+  useLayoutEffect(() => {
+    if (!duration || !progressRef.current || !playheadRef.current) return;
+    const pct = currentTime / duration;
+    progressRef.current.style.transform = `scaleX(${pct})`;
+    playheadRef.current.style.left = `${pct * 100}%`;
+  }, [currentTime, duration]);
 
   const handleTimelineClick = (e: React.MouseEvent) => {
     if (!timelineRef.current) return;
@@ -72,16 +81,21 @@ const VideoTimeline: React.FC<TimelineProps> = ({
         onMouseMove={handleTimelineMouseMove}
         onMouseLeave={handleTimelineMouseLeave}
       >
+        {/* ◀─ baseline ─▶ */}
+        <div
+          className="absolute inset-y-1/2 h-px w-full bg-gray-300"
+          style={{ transform: 'translateY(-50%)' }}
+        />
         {/* Progress bar */}
         <div
-          className="absolute h-full bg-primary-800 opacity-30 rounded-l-md"
-          style={{ width: `${timeToPercent(currentTime)}%` }}
+          ref={progressRef}
+          className="absolute top-0 left-0 h-full bg-primary-800 opacity-30 rounded-l-md origin-left will-change-transform backface-visibility-hidden transform-style-preserve-3d transition-transform"
         ></div>
         
         {/* Current position indicator */}
         <div
-          className="absolute w-1 h-full bg-primary-500 transform -translate-x-1/2 z-10"
-          style={{ left: `${timeToPercent(currentTime)}%` }}
+          ref={playheadRef}
+          className="absolute top-0 left-0 h-full w-1 bg-primary-500 will-change-transform backface-visibility-hidden transform-style-preserve-3d transition-transform"
         ></div>
         
         {/* Feedback markers */}

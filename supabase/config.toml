@@ -1,0 +1,6 @@
+# Project Configuration
+project_id = "elojmtdwirvgjvlgqvth"
+project_db_url = "postgresql://postgres:[YOUR-PASSWORD]@db.elojmtdwirvgjvlgqvth.supabase.co:5432/postgres"
+
+[migrations]
+migrations_dir = "supabase/migrations"

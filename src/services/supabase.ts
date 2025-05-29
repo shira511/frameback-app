@@ -6,9 +6,6 @@ import type { Database } from '../types/supabase';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://your-project-url.supabase.co';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'your-anon-key';
 
-console.log("Supabase URL:", supabaseUrl);
-console.log("Supabase Key:", supabaseAnonKey);
-
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
 
 // Authentication helper functions

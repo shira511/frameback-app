@@ -1,12 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type { DrawingData } from '../types';
-import { XCircle } from 'lucide-react';
 import Button from './ui/Button';
 
 interface FeedbackFormProps {
-  currentTime: number;
-  isOpen: boolean;
-  onClose: () => void;
+  timestamp: number;
   onSubmit: (comment: string, drawingData: DrawingData | null) => void;
   initialComment?: string;
   initialDrawing?: DrawingData | null;
@@ -14,9 +11,7 @@ interface FeedbackFormProps {
 }
 
 const FeedbackForm: React.FC<FeedbackFormProps> = ({
-  currentTime,
-  isOpen,
-  onClose,
+  timestamp,
   onSubmit,
   initialComment = '',
   initialDrawing = null,
@@ -25,14 +20,12 @@ const FeedbackForm: React.FC<FeedbackFormProps> = ({
   const [comment, setComment] = useState(initialComment);
   const [drawingData, setDrawingData] = useState<DrawingData | null>(initialDrawing);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  // Update form when initialComment or initialDrawing changes
   useEffect(() => {
-    if (isOpen) {
-      setComment(initialComment);
-      setDrawingData(initialDrawing);
-    }
-  }, [isOpen, initialComment, initialDrawing]);
+    setComment(initialComment);
+    setDrawingData(initialDrawing);
+  }, [initialComment, initialDrawing]);
 
   const formatTimestamp = (seconds: number): string => {
     const minutes = Math.floor(seconds / 60);
@@ -52,7 +45,6 @@ const FeedbackForm: React.FC<FeedbackFormProps> = ({
       await onSubmit(comment.trim(), drawingData);
       setComment('');
       setDrawingData(null);
-      onClose();
     } catch (error) {
       console.error('Error submitting feedback:', error);
     } finally {
@@ -60,68 +52,43 @@ const FeedbackForm: React.FC<FeedbackFormProps> = ({
     }
   };
 
-  if (!isOpen) {
-    return null;
-  }
-
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
-      <div className="bg-slate-800 rounded-lg shadow-lg w-full max-w-lg">
-        <div className="flex justify-between items-center p-4 border-b border-slate-700">
-          <h3 className="text-lg font-semibold text-white">
-            {isEditing ? 'Edit Feedback' : `Add Feedback at ${formatTimestamp(currentTime)}`}
-          </h3>
-          <button
-            onClick={onClose}
-            className="text-slate-400 hover:text-white"
-            aria-label="Close"
-          >
-            <XCircle size={20} />
-          </button>
-        </div>
-        
-        <form onSubmit={handleSubmit} className="p-4">
-          <div className="mb-4">
-            <label htmlFor="comment" className="block text-sm font-medium text-slate-300 mb-1">
-              Comment
+    <div className="bg-slate-800 rounded-lg p-4 mt-4">
+      <form onSubmit={handleSubmit}>
+        <div className="mb-4">
+          <div className="flex items-center justify-between mb-2">
+            <label htmlFor="comment" className="block text-sm font-medium text-slate-300">
+              Add Feedback at {formatTimestamp(timestamp)}
             </label>
-            <textarea
-              id="comment"
-              value={comment}
-              onChange={(e) => setComment(e.target.value)}
-              placeholder="What would you like to say about this frame?"
-              className="w-full p-3 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
-              rows={4}
-              required
-              autoFocus
-            />
-            
             {drawingData && (
-              <div className="mt-2 text-sm text-primary-400 flex items-center">
+              <div className="text-sm text-primary-400 flex items-center">
                 <span className="mr-1">●</span>
                 Drawing annotation included
               </div>
             )}
           </div>
-          
-          <div className="flex justify-end space-x-3">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={onClose}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              isLoading={isSubmitting}
-              disabled={isSubmitting || !comment.trim()}
-            >
-              {isEditing ? 'Update' : 'Submit'}
-            </Button>
-          </div>
-        </form>
-      </div>
+          <textarea
+            ref={inputRef}
+            id="comment"
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+            placeholder="What would you like to say about this frame?"
+            className="w-full p-3 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+            rows={3}
+            required
+          />
+        </div>
+        
+        <div className="flex justify-end">
+          <Button
+            type="submit"
+            isLoading={isSubmitting}
+            disabled={isSubmitting || !comment.trim()}
+          >
+            {isEditing ? 'Update' : 'Submit'}
+          </Button>
+        </div>
+      </form>
     </div>
   );
 };

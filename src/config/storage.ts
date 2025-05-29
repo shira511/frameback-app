@@ -1,0 +1,1 @@
+export const FRAME_BUCKET = import.meta.env.VITE_SUPABASE_FRAME_BUCKET || 'frames';

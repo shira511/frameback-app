@@ -2,6 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import type { DrawingData, Line, Point } from '../types';
 import { HexColorPicker } from 'react-colorful';
 import { Minus, Plus, Circle } from 'lucide-react';
+import { captureFrame } from '../services/captureFrame';
+import LoadingSpinner from './ui/LoadingSpinner';
 
 interface DrawingCanvasProps {
   containerWidth: number;
@@ -9,6 +11,7 @@ interface DrawingCanvasProps {
   isVisible: boolean;
   initialDrawing?: DrawingData | null;
   onDrawingChange: (drawingData: DrawingData | null) => void;
+  videoInfo?: { videoUrl: string; currentTime: number } | null;
 }
 
 const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
@@ -17,6 +20,7 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
   isVisible,
   initialDrawing,
   onDrawingChange,
+  videoInfo,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
@@ -25,6 +29,8 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
   const [strokeWidth, setStrokeWidth] = useState(4);
   const [strokeColor, setStrokeColor] = useState('#FF3B30');
   const [showColorPicker, setShowColorPicker] = useState(false);
+  const [isCapturing, setIsCapturing] = useState(false);
+  const [capturedImage, setCapturedImage] = useState<string | null>(null);
 
   // Set up canvas and load initial drawing if provided
   useEffect(() => {
@@ -33,7 +39,27 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
       setStrokeWidth(initialDrawing.strokeWidth);
       setStrokeColor(initialDrawing.strokeColor);
     }
-  }, [initialDrawing]);
+  }, []); // Only run once on mount
+
+  // Auto-capture frame when canvas becomes visible
+  useEffect(() => {
+    const captureFrameOnVisible = async () => {
+      if (isVisible && videoInfo && !capturedImage) {
+        setIsCapturing(true);
+        try {
+          const imageUrl = await captureFrame(videoInfo.videoUrl, videoInfo.currentTime);
+          setCapturedImage(imageUrl);
+        } catch (error) {
+          console.error('Error capturing frame:', error);
+          alert('Failed to capture frame');
+        } finally {
+          setIsCapturing(false);
+        }
+      }
+    };
+
+    captureFrameOnVisible();
+  }, [isVisible, videoInfo]);
 
   // Clear canvas and redraw all lines
   const redrawCanvas = () => {
@@ -175,6 +201,7 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
   const clearCanvas = () => {
     setLines([]);
     setCurrentLine([]);
+    setCapturedImage(null);
     
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext('2d');
@@ -198,78 +225,89 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
 
   return (
     <div className="absolute inset-0 z-10">
-      <canvas
-        ref={canvasRef}
-        width={containerWidth}
-        height={containerHeight}
-        className="absolute top-0 left-0 cursor-crosshair"
-        onMouseDown={startDrawing}
-        onMouseMove={draw}
-        onMouseUp={stopDrawing}
-        onMouseLeave={stopDrawing}
-        onTouchStart={startDrawing}
-        onTouchMove={draw}
-        onTouchEnd={stopDrawing}
-      />
-      
-      {/* Drawing controls */}
-      <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-slate-800 bg-opacity-90 rounded-lg shadow-lg p-2 flex items-center space-x-4">
-        {/* Color picker */}
-        <div className="relative">
-          <button
-            className="w-8 h-8 rounded-full border-2 border-white flex items-center justify-center"
-            style={{ backgroundColor: strokeColor }}
-            onClick={() => setShowColorPicker(!showColorPicker)}
-          ></button>
-          
-          {showColorPicker && (
-            <div className="absolute bottom-full mb-2 left-0">
-              <HexColorPicker color={strokeColor} onChange={setStrokeColor} />
+      {capturedImage ? (
+        <div className="relative w-full h-full">
+          <img
+            src={capturedImage}
+            alt="Captured frame with drawings"
+            className="w-full h-full object-contain"
+          />
+          <canvas
+            ref={canvasRef}
+            width={containerWidth}
+            height={containerHeight}
+            className="absolute top-0 left-0 cursor-crosshair"
+            onMouseDown={startDrawing}
+            onMouseMove={draw}
+            onMouseUp={stopDrawing}
+            onMouseLeave={stopDrawing}
+            onTouchStart={startDrawing}
+            onTouchMove={draw}
+            onTouchEnd={stopDrawing}
+          />
+          <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-slate-800 bg-opacity-90 rounded-lg shadow-lg p-2 flex items-center space-x-4">
+            {/* Color picker */}
+            <div className="relative">
+              <button
+                className="w-8 h-8 rounded-full border-2 border-white flex items-center justify-center"
+                style={{ backgroundColor: strokeColor }}
+                onClick={() => setShowColorPicker(!showColorPicker)}
+              ></button>
+              
+              {showColorPicker && (
+                <div className="absolute bottom-full mb-2 left-0">
+                  <HexColorPicker color={strokeColor} onChange={setStrokeColor} />
+                </div>
+              )}
             </div>
-          )}
-        </div>
-        
-        {/* Stroke width controls */}
-        <div className="flex items-center space-x-2">
-          <button
-            className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-700 text-white"
-            onClick={decreaseStrokeWidth}
-          >
-            <Minus size={16} />
-          </button>
-          
-          <div className="relative">
-            <div
-              className="w-8 h-8 rounded-full flex items-center justify-center"
-              style={{ padding: `${(20 - strokeWidth) / 2}px` }}
+            
+            {/* Stroke width controls */}
+            <div className="flex items-center space-x-2">
+              <button
+                className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-700 text-white"
+                onClick={decreaseStrokeWidth}
+              >
+                <Minus size={16} />
+              </button>
+              
+              <div className="relative">
+                <div
+                  className="w-8 h-8 rounded-full flex items-center justify-center"
+                  style={{ padding: `${(20 - strokeWidth) / 2}px` }}
+                >
+                  <div
+                    className="rounded-full"
+                    style={{
+                      backgroundColor: strokeColor,
+                      width: `${strokeWidth}px`,
+                      height: `${strokeWidth}px`,
+                    }}
+                  ></div>
+                </div>
+              </div>
+              
+              <button
+                className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-700 text-white"
+                onClick={increaseStrokeWidth}
+              >
+                <Plus size={16} />
+              </button>
+            </div>
+            
+            {/* Clear button */}
+            <button
+              className="px-3 py-1 bg-error-500 text-white text-sm rounded-md"
+              onClick={clearCanvas}
             >
-              <div
-                className="rounded-full"
-                style={{
-                  backgroundColor: strokeColor,
-                  width: `${strokeWidth}px`,
-                  height: `${strokeWidth}px`,
-                }}
-              ></div>
-            </div>
+              Clear
+            </button>
           </div>
-          
-          <button
-            className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-700 text-white"
-            onClick={increaseStrokeWidth}
-          >
-            <Plus size={16} />
-          </button>
         </div>
-        
-        {/* Clear button */}
-        <button
-          className="px-3 py-1 bg-error-500 text-white text-sm rounded-md"
-          onClick={clearCanvas}
-        >
-          Clear
-        </button>
-      </div>
+      ) : (
+        <div className="w-full h-full flex items-center justify-center bg-black bg-opacity-50">
+          <LoadingSpinner size="large" />
+        </div>
+      )}
     </div>
   );
 };

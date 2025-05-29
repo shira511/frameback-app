@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../services/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import type { Project, Feedback, DrawingData, FilterOption } from '../types';
 import AppLayout from '../components/layouts/AppLayout';
 import VideoPlayer from '../components/VideoPlayer';
 import VideoTimeline from '../components/VideoTimeline';
@@ -11,7 +12,6 @@ import DrawingCanvas from '../components/DrawingCanvas';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import Button from '../components/ui/Button';
 import { ArrowLeft, Pause, Play, SkipBack, SkipForward, Plus } from 'lucide-react';
-import type { Project, Feedback, DrawingData, FilterOption } from '../types';
 
 const ProjectView: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
@@ -31,6 +31,7 @@ const ProjectView: React.FC = () => {
   const [duration, setDuration] = useState(0);
   const [timeToSeek, setTimeToSeek] = useState<number | null>(null);
   const [playbackRate, setPlaybackRate] = useState(1);
+  const [videoInfo, setVideoInfo] = useState<{ videoUrl: string; currentTime: number } | null>(null);
   
   // Feedback form state
   const [isFeedbackFormOpen, setIsFeedbackFormOpen] = useState(false);
@@ -50,7 +51,7 @@ const ProjectView: React.FC = () => {
   
   // Refs
   const playerContainerRef = useRef<HTMLDivElement>(null);
-  
+
   // Extract YouTube video ID from URL
   const extractYouTubeId = (url: string): string | null => {
     try {
@@ -330,10 +331,10 @@ const ProjectView: React.FC = () => {
     };
   }, []);
   
-  // Callbacks for video player
-  const handleVideoReady = () => {
+   // Callbacks for video player
+  const handleVideoReady = (dur: number) => {
     setVideoReady(true);
-    setDuration(600); // Default duration until we can get it from the player
+    setDuration(dur);
   };
   
   const handleTimeUpdate = (time: number) => {
@@ -351,6 +352,8 @@ const ProjectView: React.FC = () => {
   
   const handleSeek = (time: number) => {
     setTimeToSeek(time);
+    setTimeToSeek(time);
+    setCurrentTime(time);
   };
   
   // Add feedback
@@ -618,147 +621,136 @@ const ProjectView: React.FC = () => {
         </button>
       </div>
       
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Video and Timeline */}
-        <div className="lg:col-span-2 space-y-4">
-          <div className="bg-slate-800 rounded-lg shadow-lg p-4">
-            <h1 className="text-2xl font-bold text-white mb-2">{project.title}</h1>
-            {project.description && (
-              <p className="text-slate-300 mb-4">{project.description}</p>
-            )}
-            
-            {/* Video Player Container */}
-            <div ref={playerContainerRef} className="relative">
-              {videoId && (
-                <VideoPlayer
-                  videoId={videoId}
-                  onTimeUpdate={handleTimeUpdate}
-                  onVideoReady={handleVideoReady}
-                  onPlay={handlePlay}
-                  onPause={handlePause}
-                  timeToSeek={timeToSeek}
+      <div className="w-full">
+        <div className="grid grid-cols-3 gap-6">
+          {/* Video and Timeline - Spans 2 columns */}
+          <div className="col-span-2 space-y-4">
+            <div className="bg-slate-800 rounded-lg shadow-lg p-4">
+              <h1 className="text-2xl font-bold text-white mb-2">{project.title}</h1>
+              {project.description && (
+                <p className="text-slate-300 mb-4">{project.description}</p>
+              )}
+              
+              {/* Video Player Container */}
+              <div ref={playerContainerRef} className="relative">
+                <div className="w-full aspect-video bg-black relative">
+                  {videoId && (
+                    <VideoPlayer
+                      videoId={videoId}
+                      onTimeUpdate={handleTimeUpdate}
+                      onVideoReady={handleVideoReady}
+                      onPlay={handlePlay}
+                      onPause={handlePause}
+                      timeToSeek={timeToSeek}
+                      isPlaying={isPlaying}
+                      className="absolute top-0 left-0 w-full h-full"
+                      isSketchMode={showDrawingCanvas}
+                      onVideoInfoChange={setVideoInfo}
+                    />
+                  )}
+                  
+                  {/* Drawing Canvas (only visible when paused) */}
+                  {showDrawingCanvas && !isPlaying && (
+                    <DrawingCanvas
+                      containerWidth={containerWidth}
+                      containerHeight={containerHeight}
+                      isVisible={showDrawingCanvas}
+                      initialDrawing={initialDrawing}
+                      onDrawingChange={handleDrawingChange}
+                      videoInfo={videoInfo}
+                    />
+                  )}
+                </div>
+              </div>
+              
+              {/* Video Timeline */}
+              {videoReady && (
+                <VideoTimeline
+                  duration={duration}
+                  currentTime={currentTime}
+                  feedback={feedback}
+                  onSeek={handleSeek}
                 />
               )}
               
-              {/* Drawing Canvas (only visible when paused) */}
-              {showDrawingCanvas && !isPlaying && (
-                <DrawingCanvas
-                  containerWidth={containerWidth}
-                  containerHeight={containerHeight}
-                  isVisible={showDrawingCanvas}
-                  initialDrawing={initialDrawing}
-                  onDrawingChange={handleDrawingChange}
-                />
-              )}
+              {/* Video Controls */}
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={frameBackward}
+                    className="p-2 bg-slate-700 rounded-md text-slate-300 hover:bg-slate-600 hover:text-white"
+                    title="Previous frame"
+                  >
+                    <SkipBack size={16} />
+                  </button>
+                  <button
+                    onClick={skipBackward}
+                    className="p-2 bg-slate-700 rounded-md text-slate-300 hover:bg-slate-600 hover:text-white"
+                    title="Skip 5s backward"
+                  >
+                    <SkipBack size={20} />
+                  </button>
+                  <button
+                    onClick={togglePlayPause}
+                    className="p-2 bg-primary-600 rounded-md text-white hover:bg-primary-700"
+                    title={isPlaying ? 'Pause' : 'Play'}
+                  >
+                    {isPlaying ? <Pause size={20} /> : <Play size={20} />}
+                  </button>
+                  <button
+                    onClick={skipForward}
+                    className="p-2 bg-slate-700 rounded-md text-slate-300 hover:bg-slate-600 hover:text-white"
+                    title="Skip 5s forward"
+                  >
+                    <SkipForward size={20} />
+                  </button>
+                  <button
+                    onClick={frameForward}
+                    className="p-2 bg-slate-700 rounded-md text-slate-300 hover:bg-slate-600 hover:text-white"
+                    title="Next frame"
+                  >
+                    <SkipForward size={16} />
+                  </button>
+                </div>
+                <div className="flex items-center">
+                  <Button
+                    onClick={handleAddFeedback}
+                    leftIcon={<Plus size={16} />}
+                    disabled={isPlaying}
+                    className={isPlaying ? 'opacity-50 cursor-not-allowed' : ''}
+                  >
+                    🖋Sketch
+                  </Button>
+                </div>
+              </div>
             </div>
             
-            {/* Video Timeline */}
-            {videoReady && (
-              <VideoTimeline
-                duration={duration}
-                currentTime={currentTime}
-                feedback={feedback}
-                onSeek={handleSeek}
-              />
-            )}
-            
-            {/* Video Controls */}
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={frameBackward}
-                  className="p-2 bg-slate-700 rounded-md text-slate-300 hover:bg-slate-600 hover:text-white"
-                  title="Previous frame"
-                >
-                  <SkipBack size={16} />
-                </button>
-                <button
-                  onClick={skipBackward}
-                  className="p-2 bg-slate-700 rounded-md text-slate-300 hover:bg-slate-600 hover:text-white"
-                  title="Skip 5s backward"
-                >
-                  <SkipBack size={20} />
-                </button>
-                <button
-                  onClick={togglePlayPause}
-                  className="p-2 bg-primary-600 rounded-md text-white hover:bg-primary-700"
-                  title={isPlaying ? 'Pause' : 'Play'}
-                >
-                  {isPlaying ? <Pause size={20} /> : <Play size={20} />}
-                </button>
-                <button
-                  onClick={skipForward}
-                  className="p-2 bg-slate-700 rounded-md text-slate-300 hover:bg-slate-600 hover:text-white"
-                  title="Skip 5s forward"
-                >
-                  <SkipForward size={20} />
-                </button>
-                <button
-                  onClick={frameForward}
-                  className="p-2 bg-slate-700 rounded-md text-slate-300 hover:bg-slate-600 hover:text-white"
-                  title="Next frame"
-                >
-                  <SkipForward size={16} />
-                </button>
-              </div>
-              
-              <div className="flex items-center">
-                <span className="text-sm text-slate-300 mr-2">Speed:</span>
-                <div className="flex space-x-1">
-                  {[0.5, 1, 1.5, 2].map((rate) => (
-                    <button
-                      key={rate}
-                      onClick={() => changePlaybackRate(rate)}
-                      className={`px-2 py-1 text-xs rounded-md ${
-                        playbackRate === rate
-                          ? 'bg-primary-600 text-white'
-                          : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-                      }`}
-                    >
-                      {rate}x
-                    </button>
-                  ))}
-                </div>
-                
-                <div className="border-l border-slate-600 mx-3 h-6"></div>
-                
-                <Button
-                  onClick={handleAddFeedback}
-                  leftIcon={<Plus size={16} />}
-                  disabled={isPlaying}
-                  className={isPlaying ? 'opacity-50 cursor-not-allowed' : ''}
-                >
-                  Add Feedback
-                </Button>
-              </div>
+            {/* Instructions card (mobile only) */}
+            <div className="lg:hidden bg-slate-800 rounded-lg shadow-lg p-4">
+              <h3 className="text-lg font-semibold text-white mb-2">How to Add Feedback</h3>
+              <ol className="list-decimal list-inside text-slate-300 space-y-2">
+                <li>Pause the video at the moment you want to comment on</li>
+                <li>Click the "Add Feedback" button</li>
+                <li>Draw on the video (optional) and write your comment</li>
+                <li>Submit your feedback</li>
+              </ol>
             </div>
           </div>
           
-          {/* Instructions card (mobile only) */}
-          <div className="lg:hidden bg-slate-800 rounded-lg shadow-lg p-4">
-            <h3 className="text-lg font-semibold text-white mb-2">How to Add Feedback</h3>
-            <ol className="list-decimal list-inside text-slate-300 space-y-2">
-              <li>Pause the video at the moment you want to comment on</li>
-              <li>Click the "Add Feedback" button</li>
-              <li>Draw on the video (optional) and write your comment</li>
-              <li>Submit your feedback</li>
-            </ol>
+          {/* Feedback List - Spans 1 column */}
+          <div className="col-span-1">
+            <FeedbackList
+              feedback={feedback}
+              onFeedbackClick={handleSeek}
+              onFeedbackStatusChange={handleFeedbackStatusChange}
+              onFeedbackDelete={handleDeleteFeedback}
+              onFeedbackEdit={handleEditFeedback}
+              onReactionAdd={handleAddReaction}
+              onReplyAdd={handleAddReply}
+              filterOption={filterOption}
+              onFilterChange={setFilterOption}
+            />
           </div>
-        </div>
-        
-        {/* Feedback List */}
-        <div className="lg:col-span-1">
-          <FeedbackList
-            feedback={feedback}
-            onFeedbackClick={handleSeek}
-            onFeedbackStatusChange={handleFeedbackStatusChange}
-            onFeedbackDelete={handleDeleteFeedback}
-            onFeedbackEdit={handleEditFeedback}
-            onReactionAdd={handleAddReaction}
-            onReplyAdd={handleAddReply}
-            filterOption={filterOption}
-            onFilterChange={setFilterOption}
-          />
         </div>
       </div>
       
