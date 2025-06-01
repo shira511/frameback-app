@@ -1,8 +1,6 @@
 import React, { useRef, useEffect } from 'react';
 import YouTube, { YouTubeProps } from 'react-youtube';
 
-const FRAME_DURATION = 1 / 30; // Duration of one frame at 30fps
-
 interface VideoPlayerProps {
   videoId: string;
   onTimeUpdate: (currentTime: number) => void;
@@ -11,9 +9,9 @@ interface VideoPlayerProps {
   onPause: () => void;
   timeToSeek?: number | null;
   isPlaying: boolean;
-  className?: string;
-  isSketchMode?: boolean;
-  onVideoInfoChange?: (info: { videoUrl: string; currentTime: number } | null) => void;
+  width?: string | number;
+  height?: string | number;
+  onPlayerReady?: (player: YT.Player) => void;
 }
 
 const VideoPlayer: React.FC<VideoPlayerProps> = ({
@@ -24,9 +22,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   onPause,
   timeToSeek,
   isPlaying,
-  className,
-  isSketchMode = false,
-  onVideoInfoChange,
+  width = '100%',
+  height = '100%',
+  onPlayerReady
 }) => {
   const playerRef = useRef<YT.Player>();
   const rafRef = useRef<number | null>(null);
@@ -37,12 +35,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     try {
       const currentTime = playerRef.current.getCurrentTime();
       onTimeUpdate(currentTime);
-      
-      // Update video info for frame capture
-      if (onVideoInfoChange) {
-        const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
-        onVideoInfoChange({ videoUrl, currentTime });
-      }
     } catch (error) {
       console.error('Error getting current time:', error);
     }
@@ -52,15 +44,13 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
   const handleReady: YouTubeProps['onReady'] = (event) => {
     playerRef.current = event.target;
+    onPlayerReady?.(event.target);
     const dur = event.target.getDuration();
     onVideoReady(dur);
-    
-    // Start the update loop as soon as the player is ready
     rafRef.current = requestAnimationFrame(updateLoop);
   };
 
   const handleStateChange: YouTubeProps['onStateChange'] = (event) => {
-    // YT.PlayerState values: -1 (unstarted), 0 (ended), 1 (playing), 2 (paused), 3 (buffering), 5 (video cued)
     if (event.data === 1) {
       onPlay();
     } else if (event.data === 2 || event.data === 0) {
@@ -68,14 +58,12 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     }
   };
 
-  // Handle seeking to a specific time
   useEffect(() => {
     if (playerRef.current && timeToSeek !== undefined && timeToSeek !== null) {
       playerRef.current.seekTo(timeToSeek, true);
     }
   }, [timeToSeek]);
 
-  // Handle play/pause state changes
   useEffect(() => {
     if (playerRef.current) {
       if (isPlaying) playerRef.current.playVideo();
@@ -83,40 +71,39 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     }
   }, [isPlaying]);
 
-  // Clean up animation frame on unmount
   useEffect(() => {
     return () => {
       if (rafRef.current !== null) {
         cancelAnimationFrame(rafRef.current);
       }
-      if (onVideoInfoChange) {
-        onVideoInfoChange(null);
-      }
     };
-  }, [onVideoInfoChange]);
+  }, []);
 
   return (
-    <YouTube
-      videoId={videoId}
-      key={isSketchMode ? 'sketch' : 'normal'}
-      opts={{
-        width: '100%',
-        height: '100%',
-        playerVars: {
-          modestbranding: isSketchMode ? 1 : 0,
-          controls: isSketchMode ? 0 : 1,
-          showinfo: isSketchMode ? 0 : 1,
-          disablekb: isSketchMode ? 1 : 0,
-          rel: 0,
-          enablejsapi: 1,
-          origin: window.location.origin.replace(/\s+/g, ''),
-        },
-      }}
-      onReady={handleReady}
-      onStateChange={handleStateChange}
-      className={className}
-    />
+    <div className="relative w-full" style={{ paddingTop: '56.25%' }}>
+      <div className="absolute top-0 left-0 w-full h-full">
+        <YouTube
+          videoId={videoId}
+          opts={{
+            width: '100%',
+            height: '100%',
+            playerVars: {
+              modestbranding: 1,
+              controls: 1,
+              showinfo: 1,
+              rel: 0,
+              enablejsapi: 1,
+              origin: window.location.origin
+            },
+          }}
+          onReady={handleReady}
+          onStateChange={handleStateChange}
+          className="absolute top-0 left-0 w-full h-full"
+          style={{ zIndex: 1 }}
+        />
+      </div>
+    </div>
   );
 };
 
-export default VideoPlayer;
+export default VideoPlayer

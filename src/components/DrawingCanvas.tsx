@@ -1,313 +1,253 @@
-import React, { useEffect, useRef, useState } from 'react';
-import type { DrawingData, Line, Point } from '../types';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { HexColorPicker } from 'react-colorful';
-import { Minus, Plus, Circle } from 'lucide-react';
-import { captureFrame } from '../services/captureFrame';
-import LoadingSpinner from './ui/LoadingSpinner';
+import { Minus, Plus, Pencil } from 'lucide-react';
+import type { DrawingData, Line, Point } from '../types';
 
 interface DrawingCanvasProps {
-  containerWidth: number;
-  containerHeight: number;
-  isVisible: boolean;
+  width: number;
+  height: number;
+  className?: string;
+  onDrawingChange?: (drawingData: DrawingData | null) => void;
   initialDrawing?: DrawingData | null;
-  onDrawingChange: (drawingData: DrawingData | null) => void;
-  videoInfo?: { videoUrl: string; currentTime: number } | null;
+  autoEnableDrawing?: boolean;
 }
 
 const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
-  containerWidth,
-  containerHeight,
-  isVisible,
-  initialDrawing,
+  width,
+  height,
+  className = '',
   onDrawingChange,
-  videoInfo,
+  initialDrawing = null,
+  autoEnableDrawing = false
 }) => {
+  console.log('[DrawingCanvas] mounted', { width, height, initialDrawing, autoEnableDrawing });
+
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
+  const [isDrawingMode, setIsDrawingMode] = useState(autoEnableDrawing);
+  const [lines, setLines] = useState<Line[]>(initialDrawing?.lines || []);
   const [currentLine, setCurrentLine] = useState<Point[]>([]);
-  const [lines, setLines] = useState<Line[]>([]);
-  const [strokeWidth, setStrokeWidth] = useState(4);
-  const [strokeColor, setStrokeColor] = useState('#FF3B30');
+  const [strokeColor, setStrokeColor] = useState(initialDrawing?.strokeColor || '#FF3B30');
+  const [strokeWidth, setStrokeWidth] = useState(initialDrawing?.strokeWidth || 4);
   const [showColorPicker, setShowColorPicker] = useState(false);
-  const [isCapturing, setIsCapturing] = useState(false);
-  const [capturedImage, setCapturedImage] = useState<string | null>(null);
 
-  // Set up canvas and load initial drawing if provided
+  console.log('[DrawingCanvas] initial state', { isDrawingMode, lines });
+
   useEffect(() => {
-    if (initialDrawing) {
-      setLines(initialDrawing.lines);
-      setStrokeWidth(initialDrawing.strokeWidth);
-      setStrokeColor(initialDrawing.strokeColor);
+    if (autoEnableDrawing) {
+      console.log('[DrawingCanvas] auto-enabling drawing mode');
+      setIsDrawingMode(true);
     }
-  }, []); // Only run once on mount
+  }, [autoEnableDrawing]);
 
-  // Auto-capture frame when canvas becomes visible
-  useEffect(() => {
-    const captureFrameOnVisible = async () => {
-      if (isVisible && videoInfo && !capturedImage) {
-        setIsCapturing(true);
-        try {
-          const imageUrl = await captureFrame(videoInfo.videoUrl, videoInfo.currentTime);
-          setCapturedImage(imageUrl);
-        } catch (error) {
-          console.error('Error capturing frame:', error);
-          alert('Failed to capture frame');
-        } finally {
-          setIsCapturing(false);
-        }
-      }
-    };
+  const drawLine = useCallback((ctx: CanvasRenderingContext2D, line: Line) => {
+    if (line.points.length < 2) return;
+    console.log('[DrawingCanvas] drawing line', line);
 
-    captureFrameOnVisible();
-  }, [isVisible, videoInfo]);
-
-  // Clear canvas and redraw all lines
-  const redrawCanvas = () => {
-    const canvas = canvasRef.current;
-    const ctx = canvas?.getContext('2d');
-    
-    if (!ctx || !canvas) return;
-    
-    // Clear canvas
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
-    // Draw all saved lines
-    lines.forEach((line) => {
-      if (line.points.length < 2) return;
-      
-      ctx.beginPath();
-      ctx.moveTo(line.points[0].x, line.points[0].y);
-      
-      for (let i = 1; i < line.points.length; i++) {
-        ctx.lineTo(line.points[i].x, line.points[i].y);
-      }
-      
-      ctx.strokeStyle = line.strokeColor;
-      ctx.lineWidth = line.strokeWidth;
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-      ctx.stroke();
-    });
-  };
-
-  // Notify parent component of drawing changes
-  useEffect(() => {
-    if (lines.length > 0) {
-      onDrawingChange({
-        lines,
-        strokeWidth,
-        strokeColor,
-      });
-    } else if (initialDrawing && lines.length === 0) {
-      onDrawingChange(null);
-    }
-  }, [lines, strokeWidth, strokeColor, onDrawingChange, initialDrawing]);
-
-  // Draw current line in progress
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    const ctx = canvas?.getContext('2d');
-    
-    if (!ctx || !canvas || !isDrawing || currentLine.length < 2) return;
-    
-    // Redraw all existing lines
-    redrawCanvas();
-    
-    // Draw current line
     ctx.beginPath();
-    ctx.moveTo(currentLine[0].x, currentLine[0].y);
+    ctx.moveTo(line.points[0].x, line.points[0].y);
     
-    for (let i = 1; i < currentLine.length; i++) {
-      ctx.lineTo(currentLine[i].x, currentLine[i].y);
+    for (let i = 1; i < line.points.length; i++) {
+      ctx.lineTo(line.points[i].x, line.points[i].y);
     }
     
-    ctx.strokeStyle = strokeColor;
-    ctx.lineWidth = strokeWidth;
+    ctx.strokeStyle = line.strokeColor;
+    ctx.lineWidth = line.strokeWidth;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.stroke();
-  }, [currentLine, isDrawing, strokeColor, strokeWidth, lines]);
+  }, []);
 
-  // Resize canvas when container size changes
-  useEffect(() => {
+  const redrawCanvas = useCallback(() => {
+    console.log('[DrawingCanvas] redrawing canvas', { lines });
     const canvas = canvasRef.current;
-    if (!canvas) return;
-    
-    canvas.width = containerWidth;
-    canvas.height = containerHeight;
-    
-    redrawCanvas();
-  }, [containerWidth, containerHeight]);
+    const ctx = canvas?.getContext('2d');
+    if (!ctx || !canvas) return;
 
-  // Redraw canvas when visibility changes
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    lines.forEach(line => drawLine(ctx, line));
+  }, [lines, drawLine]);
+
   useEffect(() => {
-    if (isVisible) {
-      redrawCanvas();
+    console.log('[DrawingCanvas] resize effect', { width, height });
+    const canvas = canvasRef.current;
+    if (!canvas || width <= 0 || height <= 0) {
+      console.warn('[DrawingCanvas] invalid dimensions or no canvas', { width, height });
+      return;
     }
-  }, [isVisible]);
+
+    canvas.width = width;
+    canvas.height = height;
+    redrawCanvas();
+  }, [width, height, redrawCanvas]);
+
+  useEffect(() => {
+    console.log('[DrawingCanvas] applying initialDrawing', initialDrawing);
+    if (!initialDrawing) return;
+    
+    setLines(initialDrawing.lines);
+    setStrokeColor(initialDrawing.strokeColor);
+    setStrokeWidth(initialDrawing.strokeWidth);
+  }, [initialDrawing]);
 
   const getCanvasCoordinates = (e: React.MouseEvent | React.TouchEvent): Point => {
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
     
     const rect = canvas.getBoundingClientRect();
+    const point = 'touches' in e ? e.touches[0] : e;
     
-    if ('touches' in e) {
-      return {
-        x: e.touches[0].clientX - rect.left,
-        y: e.touches[0].clientY - rect.top,
-      };
-    } else {
-      return {
-        x: e.clientX - rect.left,
-        y: e.clientY - rect.top,
-      };
-    }
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    
+    return {
+      x: (point.clientX - rect.left) * scaleX,
+      y: (point.clientY - rect.top) * scaleY
+    };
   };
 
-  const startDrawing = (e: React.MouseEvent | React.TouchEvent) => {
-    if (!isVisible) return;
+  const handleDrawStart = (e: React.MouseEvent | React.TouchEvent) => {
+    if (!isDrawingMode) return;
     
+    e.preventDefault();
+    console.log('[DrawingCanvas] draw start');
     const point = getCanvasCoordinates(e);
     setCurrentLine([point]);
     setIsDrawing(true);
   };
 
-  const draw = (e: React.MouseEvent | React.TouchEvent) => {
-    if (!isDrawing || !isVisible) return;
+  const handleDrawMove = (e: React.MouseEvent | React.TouchEvent) => {
+    if (!isDrawing || !isDrawingMode) return;
     
+    e.preventDefault();
+    console.log('[DrawingCanvas] draw move');
     const point = getCanvasCoordinates(e);
-    setCurrentLine((prev) => [...prev, point]);
+    setCurrentLine(prev => [...prev, point]);
+    
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext('2d');
+    if (!ctx || !canvas) return;
+
+    drawLine(ctx, {
+      points: [...currentLine, point],
+      strokeColor,
+      strokeWidth
+    });
   };
 
-  const stopDrawing = () => {
+  const handleDrawEnd = () => {
     if (!isDrawing) return;
+    console.log('[DrawingCanvas] draw end', { currentLine });
     
     if (currentLine.length > 1) {
-      setLines((prev) => [
-        ...prev,
-        {
-          points: currentLine,
-          strokeWidth,
-          strokeColor,
-        },
-      ]);
+      const newLine = {
+        points: currentLine,
+        strokeColor,
+        strokeWidth
+      };
+      setLines(prev => [...prev, newLine]);
+      onDrawingChange?.({
+        lines: [...lines, newLine],
+        strokeColor,
+        strokeWidth
+      });
     }
     
     setCurrentLine([]);
     setIsDrawing(false);
   };
 
-  const clearCanvas = () => {
+  const handleClear = () => {
+    console.log('[DrawingCanvas] clearing canvas');
     setLines([]);
-    setCurrentLine([]);
-    setCapturedImage(null);
-    
+    onDrawingChange?.(null);
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext('2d');
-    
     if (ctx && canvas) {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
     }
   };
 
-  const increaseStrokeWidth = () => {
-    setStrokeWidth((prev) => Math.min(prev + 2, 20));
-  };
+  console.log('[DrawingCanvas] render', { width, height, lines });
 
-  const decreaseStrokeWidth = () => {
-    setStrokeWidth((prev) => Math.max(prev - 2, 2));
-  };
-
-  if (!isVisible) {
+  if (width <= 0 || height <= 0) {
+    console.warn('[DrawingCanvas] skipping render - invalid dimensions', { width, height });
     return null;
   }
 
   return (
-    <div className="absolute inset-0 z-10">
-      {capturedImage ? (
-        <div className="relative w-full h-full">
-          <img
-            src={capturedImage}
-            alt="Captured frame with drawings"
-            className="w-full h-full object-contain"
-          />
-          <canvas
-            ref={canvasRef}
-            width={containerWidth}
-            height={containerHeight}
-            className="absolute top-0 left-0 cursor-crosshair"
-            onMouseDown={startDrawing}
-            onMouseMove={draw}
-            onMouseUp={stopDrawing}
-            onMouseLeave={stopDrawing}
-            onTouchStart={startDrawing}
-            onTouchMove={draw}
-            onTouchEnd={stopDrawing}
-          />
-          <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-slate-800 bg-opacity-90 rounded-lg shadow-lg p-2 flex items-center space-x-4">
-            {/* Color picker */}
-            <div className="relative">
-              <button
-                className="w-8 h-8 rounded-full border-2 border-white flex items-center justify-center"
-                style={{ backgroundColor: strokeColor }}
-                onClick={() => setShowColorPicker(!showColorPicker)}
-              ></button>
-              
-              {showColorPicker && (
-                <div className="absolute bottom-full mb-2 left-0">
-                  <HexColorPicker color={strokeColor} onChange={setStrokeColor} />
-                </div>
-              )}
-            </div>
-            
-            {/* Stroke width controls */}
-            <div className="flex items-center space-x-2">
-              <button
-                className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-700 text-white"
-                onClick={decreaseStrokeWidth}
-              >
-                <Minus size={16} />
-              </button>
-              
+    <div className={`relative ${className}`}>
+      <canvas
+        ref={canvasRef}
+        width={width}
+        height={height}
+        className={`absolute top-0 left-0 z-50 ${isDrawingMode ? 'cursor-crosshair' : ''}`}
+        style={{ 
+          pointerEvents: isDrawingMode ? 'auto' : 'none',
+          touchAction: 'none'
+        }}
+        onMouseDown={handleDrawStart}
+        onMouseMove={handleDrawMove}
+        onMouseUp={handleDrawEnd}
+        onMouseLeave={handleDrawEnd}
+        onTouchStart={handleDrawStart}
+        onTouchMove={handleDrawMove}
+        onTouchEnd={handleDrawEnd}
+      />
+      
+      <div className="absolute top-4 right-4 flex flex-col items-end gap-2">
+        <div className="bg-slate-800 bg-opacity-90 rounded-lg shadow-lg p-2 flex items-center gap-2">
+          <button
+            onClick={() => setIsDrawingMode(!isDrawingMode)}
+            className={`p-2 rounded-md ${
+              isDrawingMode ? 'bg-primary-600 text-white' : 'bg-slate-700 text-slate-300'
+            }`}
+            title={isDrawingMode ? 'Disable drawing' : 'Enable drawing'}
+          >
+            <Pencil size={16} />
+          </button>
+          
+          {isDrawingMode && (
+            <>
               <div className="relative">
-                <div
-                  className="w-8 h-8 rounded-full flex items-center justify-center"
-                  style={{ padding: `${(20 - strokeWidth) / 2}px` }}
+                <button
+                  className="w-8 h-8 rounded-full border-2 border-white"
+                  style={{ backgroundColor: strokeColor }}
+                  onClick={() => setShowColorPicker(!showColorPicker)}
+                />
+                {showColorPicker && (
+                  <div className="absolute top-full right-0 mt-2">
+                    <HexColorPicker color={strokeColor} onChange={setStrokeColor} />
+                  </div>
+                )}
+              </div>
+              
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setStrokeWidth(w => Math.max(1, w - 1))}
+                  className="p-1 bg-slate-700 rounded-md text-white"
                 >
-                  <div
-                    className="rounded-full"
-                    style={{
-                      backgroundColor: strokeColor,
-                      width: `${strokeWidth}px`,
-                      height: `${strokeWidth}px`,
-                    }}
-                  ></div>
-                </div>
+                  <Minus size={14} />
+                </button>
+                <span className="w-8 text-center text-white">{strokeWidth}</span>
+                <button
+                  onClick={() => setStrokeWidth(w => Math.min(20, w + 1))}
+                  className="p-1 bg-slate-700 rounded-md text-white"
+                >
+                  <Plus size={14} />
+                </button>
               </div>
               
               <button
-                className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-700 text-white"
-                onClick={increaseStrokeWidth}
+                onClick={handleClear}
+                className="px-3 py-1 bg-error-500 text-white text-sm rounded-md"
               >
-                <Plus size={16} />
+                Clear
               </button>
-            </div>
-            
-            {/* Clear button */}
-            <button
-              className="px-3 py-1 bg-error-500 text-white text-sm rounded-md"
-              onClick={clearCanvas}
-            >
-              Clear
-            </button>
-          </div>
+            </>
+          )}
         </div>
-      ) : (
-        <div className="w-full h-full flex items-center justify-center bg-black bg-opacity-50">
-          <LoadingSpinner size="large" />
-        </div>
-      )}
+      </div>
     </div>
   );
 };

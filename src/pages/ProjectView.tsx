@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../services/supabase';
 import { useAuth } from '../contexts/AuthContext';
@@ -31,7 +31,6 @@ const ProjectView: React.FC = () => {
   const [duration, setDuration] = useState(0);
   const [timeToSeek, setTimeToSeek] = useState<number | null>(null);
   const [playbackRate, setPlaybackRate] = useState(1);
-  const [videoInfo, setVideoInfo] = useState<{ videoUrl: string; currentTime: number } | null>(null);
   
   // Feedback form state
   const [isFeedbackFormOpen, setIsFeedbackFormOpen] = useState(false);
@@ -51,36 +50,42 @@ const ProjectView: React.FC = () => {
   
   // Refs
   const playerContainerRef = useRef<HTMLDivElement>(null);
+  const playerRef = useRef<YT.Player>();
 
-  // Extract YouTube video ID from URL
+  const handlePlayerReady = (player: YT.Player) => {
+    playerRef.current = player;
+  };
+
+  const handleSketchClick = () => {
+    console.log('[ProjectView] before handleSketchClick', { isPlaying, showDrawingCanvas });
+    if (playerRef.current) {
+      playerRef.current.pauseVideo();
+    }
+    setIsPlaying(false);
+    setShowDrawingCanvas(true);
+    setIsFeedbackFormOpen(true);
+    console.log('[ProjectView] after handleSketchClick', { isPlaying: false, showDrawingCanvas: true });
+  };
+
   const extractYouTubeId = (url: string): string | null => {
     try {
-      // Create URL object (handles relative URLs by prepending protocol if needed)
       const fullUrl = url.startsWith('http') ? url : `https://${url}`;
       const urlObj = new URL(fullUrl);
       
       let videoId: string | null = null;
       
-      // Handle youtu.be URLs
       if (urlObj.hostname === 'youtu.be') {
         videoId = urlObj.pathname.slice(1);
-      }
-      // Handle youtube.com URLs
-      else if (urlObj.hostname === 'youtube.com' || urlObj.hostname === 'www.youtube.com') {
-        // Get video ID from query parameter
+      } else if (urlObj.hostname === 'youtube.com' || urlObj.hostname === 'www.youtube.com') {
         videoId = urlObj.searchParams.get('v');
         
-        // Handle /v/ format
         if (!videoId && urlObj.pathname.startsWith('/v/')) {
           videoId = urlObj.pathname.slice(3);
-        }
-        // Handle /embed/ format
-        else if (!videoId && urlObj.pathname.startsWith('/embed/')) {
+        } else if (!videoId && urlObj.pathname.startsWith('/embed/')) {
           videoId = urlObj.pathname.slice(7);
         }
       }
       
-      // Clean up video ID by removing any remaining query parameters or hash
       if (videoId) {
         videoId = videoId.split(/[#?]/)[0];
         return videoId.length === 11 ? videoId : null;
@@ -92,8 +97,7 @@ const ProjectView: React.FC = () => {
       return null;
     }
   };
-  
-  // Fetch project and initial feedback
+
   useEffect(() => {
     const fetchProjectData = async () => {
       if (!projectId) return;
@@ -102,7 +106,6 @@ const ProjectView: React.FC = () => {
         setIsLoading(true);
         setError(null);
         
-        // Fetch project
         const { data: projectData, error: projectError } = await supabase
           .from('projects')
           .select('*')
@@ -126,7 +129,6 @@ const ProjectView: React.FC = () => {
         
         setProject(formattedProject);
         
-        // Extract YouTube video ID
         const youtubeId = extractYouTubeId(formattedProject.videoUrl);
         if (youtubeId) {
           setVideoId(youtubeId);
@@ -134,7 +136,6 @@ const ProjectView: React.FC = () => {
           throw new Error('Invalid YouTube URL');
         }
         
-        // Fetch initial feedback
         await fetchFeedback();
       } catch (err) {
         console.error('Error fetching project:', err);
@@ -149,12 +150,10 @@ const ProjectView: React.FC = () => {
     
     fetchProjectData();
   }, [projectId, navigate]);
-  
-  // Subscribe to feedback updates
+
   useEffect(() => {
     if (!projectId) return;
     
-    // Set up real-time subscription
     const feedbackSubscription = supabase
       .channel(`project-${projectId}-feedback`)
       .on(
@@ -166,7 +165,6 @@ const ProjectView: React.FC = () => {
           filter: `project_id=eq.${projectId}`
         },
         () => {
-          // Refetch all feedback when any changes occur
           fetchFeedback();
         }
       )
@@ -176,13 +174,11 @@ const ProjectView: React.FC = () => {
       supabase.removeChannel(feedbackSubscription);
     };
   }, [projectId]);
-  
-  // Fetch feedback data with user profiles, reactions, and replies
+
   const fetchFeedback = async () => {
     if (!projectId) return;
     
     try {
-      // Fetch feedback for the project
       const { data: feedbackData, error: feedbackError } = await supabase
         .from('feedback')
         .select('*')
@@ -196,7 +192,6 @@ const ProjectView: React.FC = () => {
         return;
       }
       
-      // Fetch user profiles for all feedback
       const userIds = Array.from(new Set(feedbackData.map(item => item.user_id)));
       
       const { data: profilesData, error: profilesError } = await supabase
@@ -208,7 +203,6 @@ const ProjectView: React.FC = () => {
       
       const userProfiles = profilesData || [];
       
-      // Fetch reactions for all feedback
       const feedbackIds = feedbackData.map(item => item.id);
       
       const { data: reactionsData, error: reactionsError } = await supabase
@@ -218,7 +212,6 @@ const ProjectView: React.FC = () => {
       
       if (reactionsError) throw reactionsError;
       
-      // Fetch replies for all feedback
       const { data: repliesData, error: repliesError } = await supabase
         .from('replies')
         .select('*')
@@ -227,7 +220,6 @@ const ProjectView: React.FC = () => {
       
       if (repliesError) throw repliesError;
       
-      // Fetch user profiles for all replies
       const replyUserIds = repliesData 
         ? Array.from(new Set(repliesData.map(reply => reply.user_id)))
         : [];
@@ -245,7 +237,6 @@ const ProjectView: React.FC = () => {
         replyUserProfiles = replyProfilesData || [];
       }
       
-      // Format the feedback data with user profiles, reactions, and replies
       const formattedFeedback: Feedback[] = feedbackData.map(item => {
         const userProfile = userProfiles.find(profile => profile.id === item.user_id);
         
@@ -310,80 +301,65 @@ const ProjectView: React.FC = () => {
       console.error('Error fetching feedback:', err);
     }
   };
-  
-  // Update container dimensions for drawing canvas
+
   useEffect(() => {
     const updateDimensions = () => {
       if (playerContainerRef.current) {
-        setContainerWidth(playerContainerRef.current.offsetWidth);
-        setContainerHeight(playerContainerRef.current.offsetHeight);
+        const w = playerContainerRef.current.offsetWidth;
+        const h = playerContainerRef.current.offsetHeight;
+        console.log('[ProjectView] updateDimensions', { w, h });
+        setContainerWidth(w);
+        setContainerHeight(h);
       }
     };
-    
-    // Initial calculation
     updateDimensions();
-    
-    // Listen for resize events
     window.addEventListener('resize', updateDimensions);
-    
-    return () => {
-      window.removeEventListener('resize', updateDimensions);
-    };
+    return () => window.removeEventListener('resize', updateDimensions);
   }, []);
-  
-   // Callbacks for video player
+
+  // Video player callbacks
   const handleVideoReady = (dur: number) => {
     setVideoReady(true);
     setDuration(dur);
   };
-  
+
   const handleTimeUpdate = (time: number) => {
     setCurrentTime(time);
   };
-  
+
   const handlePlay = () => {
     setIsPlaying(true);
     setShowDrawingCanvas(false);
   };
-  
+
   const handlePause = () => {
     setIsPlaying(false);
   };
-  
+
   const handleSeek = (time: number) => {
-    setTimeToSeek(time);
     setTimeToSeek(time);
     setCurrentTime(time);
   };
-  
-  // Add feedback
-  const handleAddFeedback = () => {
-    // Pause the video if it's playing
+
+  const handleAddFeedbackClick = () => {
     setIsPlaying(false);
-    
-    // Show the drawing canvas
     setShowDrawingCanvas(true);
-    
-    // Open the feedback form
     setIsFeedbackFormOpen(true);
     setIsEditingFeedback(false);
     setEditingFeedbackId(null);
     setInitialComment('');
     setInitialDrawing(null);
   };
-  
-  // Handle drawing changes
+
   const handleDrawingChange = (drawingData: DrawingData | null) => {
     setCurrentDrawing(drawingData);
   };
-  
-  // Submit feedback
+
   const handleFeedbackSubmit = async (comment: string, drawingData: DrawingData | null) => {
     if (!user || !projectId) return;
     
     try {
       if (isEditingFeedback && editingFeedbackId) {
-        // Update existing feedback
         await supabase
           .from('feedback')
           .update({
@@ -392,7 +368,6 @@ const ProjectView: React.FC = () => {
           })
           .eq('id', editingFeedbackId);
       } else {
-        // Create new feedback
         await supabase
           .from('feedback')
           .insert({
@@ -405,75 +380,61 @@ const ProjectView: React.FC = () => {
           });
       }
       
-      // Hide the drawing canvas
       setShowDrawingCanvas(false);
       setCurrentDrawing(null);
-      
-      // Clear form state
       setIsEditingFeedback(false);
       setEditingFeedbackId(null);
       
-      // Refresh feedback list
       await fetchFeedback();
     } catch (err) {
       console.error('Error submitting feedback:', err);
       alert('Failed to submit feedback. Please try again.');
     }
   };
-  
-  // Edit feedback
+
   const handleEditFeedback = (feedbackItem: Feedback) => {
-    // Pause the video and seek to the feedback timestamp
     setIsPlaying(false);
     setTimeToSeek(feedbackItem.timestamp);
     
-    // Show the drawing canvas if the feedback has a drawing
     if (feedbackItem.drawingData) {
       setShowDrawingCanvas(true);
     }
     
-    // Open the feedback form with existing data
     setIsEditingFeedback(true);
     setEditingFeedbackId(feedbackItem.id);
     setInitialComment(feedbackItem.comment);
     setInitialDrawing(feedbackItem.drawingData);
     setIsFeedbackFormOpen(true);
   };
-  
-  // Delete feedback
+
   const handleDeleteFeedback = async (feedbackId: string) => {
     if (!confirm('Are you sure you want to delete this feedback?')) {
       return;
     }
     
     try {
-      // Delete reactions first
       await supabase
         .from('reactions')
         .delete()
         .eq('feedback_id', feedbackId);
       
-      // Delete replies
       await supabase
         .from('replies')
         .delete()
         .eq('feedback_id', feedbackId);
       
-      // Delete the feedback
       await supabase
         .from('feedback')
         .delete()
         .eq('id', feedbackId);
       
-      // Refresh feedback list
       await fetchFeedback();
     } catch (err) {
       console.error('Error deleting feedback:', err);
       alert('Failed to delete feedback. Please try again.');
     }
   };
-  
-  // Change feedback status
+
   const handleFeedbackStatusChange = async (feedbackId: string, isChecked: boolean) => {
     try {
       await supabase
@@ -481,20 +442,17 @@ const ProjectView: React.FC = () => {
         .update({ is_checked: isChecked })
         .eq('id', feedbackId);
       
-      // Refresh feedback list
       await fetchFeedback();
     } catch (err) {
       console.error('Error updating feedback status:', err);
       alert('Failed to update feedback status. Please try again.');
     }
   };
-  
-  // Add reaction to feedback
+
   const handleAddReaction = async (feedbackId: string, emoji: string) => {
     if (!user) return;
     
     try {
-      // Check if user already reacted with this emoji
       const { data: existingReaction } = await supabase
         .from('reactions')
         .select('*')
@@ -504,13 +462,11 @@ const ProjectView: React.FC = () => {
         .single();
       
       if (existingReaction) {
-        // Remove the reaction if it already exists
         await supabase
           .from('reactions')
           .delete()
           .eq('id', existingReaction.id);
       } else {
-        // Add new reaction
         await supabase
           .from('reactions')
           .insert({
@@ -520,15 +476,13 @@ const ProjectView: React.FC = () => {
           });
       }
       
-      // Refresh feedback list
       await fetchFeedback();
     } catch (err) {
       console.error('Error adding reaction:', err);
       alert('Failed to add reaction. Please try again.');
     }
   };
-  
-  // Add reply to feedback
+
   const handleAddReply = async (feedbackId: string, comment: string) => {
     if (!user) return;
     
@@ -541,47 +495,39 @@ const ProjectView: React.FC = () => {
           comment
         });
       
-      // Refresh feedback list
       await fetchFeedback();
     } catch (err) {
       console.error('Error adding reply:', err);
       alert('Failed to add reply. Please try again.');
     }
   };
-  
-  // Playback controls
+
   const togglePlayPause = () => {
     setIsPlaying(!isPlaying);
   };
-  
+
   const skipForward = () => {
     const newTime = currentTime + 5;
     setTimeToSeek(Math.min(newTime, duration));
   };
-  
+
   const skipBackward = () => {
     const newTime = currentTime - 5;
     setTimeToSeek(Math.max(0, newTime));
   };
-  
+
   const frameForward = () => {
-    // Approximate frame step (assuming 30fps)
     const frameStep = 1 / 30;
     const newTime = currentTime + frameStep;
     setTimeToSeek(Math.min(newTime, duration));
   };
-  
+
   const frameBackward = () => {
-    // Approximate frame step (assuming 30fps)
     const frameStep = 1 / 30;
     const newTime = currentTime - frameStep;
     setTimeToSeek(Math.max(0, newTime));
   };
-  
-  const changePlaybackRate = (rate: number) => {
-    setPlaybackRate(rate);
-  };
-  
+
   if (isLoading) {
     return (
       <AppLayout>
@@ -591,7 +537,7 @@ const ProjectView: React.FC = () => {
       </AppLayout>
     );
   }
-  
+
   if (error || !project) {
     return (
       <AppLayout>
@@ -608,7 +554,7 @@ const ProjectView: React.FC = () => {
       </AppLayout>
     );
   }
-  
+
   return (
     <AppLayout title={project.title}>
       <div className="mb-6">
@@ -620,18 +566,16 @@ const ProjectView: React.FC = () => {
           Back to Dashboard
         </button>
       </div>
-      
+
       <div className="w-full">
         <div className="grid grid-cols-3 gap-6">
-          {/* Video and Timeline - Spans 2 columns */}
           <div className="col-span-2 space-y-4">
             <div className="bg-slate-800 rounded-lg shadow-lg p-4">
               <h1 className="text-2xl font-bold text-white mb-2">{project.title}</h1>
               {project.description && (
                 <p className="text-slate-300 mb-4">{project.description}</p>
               )}
-              
-              {/* Video Player Container */}
+
               <div ref={playerContainerRef} className="relative">
                 <div className="w-full aspect-video bg-black relative">
                   {videoId && (
@@ -643,38 +587,27 @@ const ProjectView: React.FC = () => {
                       onPause={handlePause}
                       timeToSeek={timeToSeek}
                       isPlaying={isPlaying}
-                      className="absolute top-0 left-0 w-full h-full"
-                      isSketchMode={showDrawingCanvas}
-                      onVideoInfoChange={setVideoInfo}
+                      width={containerWidth}
+                      height={containerHeight}
+                      onPlayerReady={handlePlayerReady}
                     />
                   )}
-                  
-                  {/* Drawing Canvas (only visible when paused) */}
-                  {showDrawingCanvas && !isPlaying && (
+
+                  {console.log('[ProjectView] render check', { showDrawingCanvas, isPlaying, containerWidth, containerHeight })}
+                  {showDrawingCanvas && containerWidth > 0 && containerHeight > 0 && (
                     <DrawingCanvas
-                      containerWidth={containerWidth}
-                      containerHeight={containerHeight}
-                      isVisible={showDrawingCanvas}
-                      initialDrawing={initialDrawing}
+                      width={containerWidth}
+                      height={containerHeight}
+                      className="absolute top-0 left-0"
                       onDrawingChange={handleDrawingChange}
-                      videoInfo={videoInfo}
+                      initialDrawing={currentDrawing || initialDrawing}
+                      autoEnableDrawing={true}
                     />
                   )}
                 </div>
               </div>
-              
-              {/* Video Timeline */}
-              {videoReady && (
-                <VideoTimeline
-                  duration={duration}
-                  currentTime={currentTime}
-                  feedback={feedback}
-                  onSeek={handleSeek}
-                />
-              )}
-              
-              {/* Video Controls */}
-              <div className="flex flex-wrap items-center justify-between gap-4">
+
+              <div className="flex items-center justify-between mt-4">
                 <div className="flex items-center space-x-2">
                   <button
                     onClick={frameBackward}
@@ -712,20 +645,26 @@ const ProjectView: React.FC = () => {
                     <SkipForward size={16} />
                   </button>
                 </div>
-                <div className="flex items-center">
-                  <Button
-                    onClick={handleAddFeedback}
-                    leftIcon={<Plus size={16} />}
-                    disabled={isPlaying}
-                    className={isPlaying ? 'opacity-50 cursor-not-allowed' : ''}
-                  >
-                    🖋Sketch
-                  </Button>
-                </div>
+                <Button
+                  onClick={handleSketchClick}
+                  leftIcon={<Plus size={16} />}
+                  disabled={isPlaying}
+                  className={isPlaying ? 'opacity-50 cursor-not-allowed' : ''}
+                >
+                  Sketch
+                </Button>
               </div>
+
+              {videoReady && (
+                <VideoTimeline
+                  duration={duration}
+                  currentTime={currentTime}
+                  feedback={feedback}
+                  onSeek={handleSeek}
+                />
+              )}
             </div>
-            
-            {/* Instructions card (mobile only) */}
+
             <div className="lg:hidden bg-slate-800 rounded-lg shadow-lg p-4">
               <h3 className="text-lg font-semibold text-white mb-2">How to Add Feedback</h3>
               <ol className="list-decimal list-inside text-slate-300 space-y-2">
@@ -736,8 +675,7 @@ const ProjectView: React.FC = () => {
               </ol>
             </div>
           </div>
-          
-          {/* Feedback List - Spans 1 column */}
+
           <div className="col-span-1">
             <FeedbackList
               feedback={feedback}
@@ -753,23 +691,16 @@ const ProjectView: React.FC = () => {
           </div>
         </div>
       </div>
-      
-      {/* Feedback Form Modal */}
-      <FeedbackForm
-        currentTime={currentTime}
-        isOpen={isFeedbackFormOpen}
-        onClose={() => {
-          setIsFeedbackFormOpen(false);
-          setShowDrawingCanvas(false);
-          setCurrentDrawing(null);
-          setIsEditingFeedback(false);
-          setEditingFeedbackId(null);
-        }}
-        onSubmit={handleFeedbackSubmit}
-        initialComment={initialComment}
-        initialDrawing={currentDrawing || initialDrawing}
-        isEditing={isEditingFeedback}
-      />
+
+      {isFeedbackFormOpen && (
+        <FeedbackForm
+          timestamp={currentTime}
+          onSubmit={handleFeedbackSubmit}
+          initialComment={initialComment}
+          initialDrawing={currentDrawing || initialDrawing}
+          isEditing={isEditingFeedback}
+        />
+      )}
     </AppLayout>
   );
 };
