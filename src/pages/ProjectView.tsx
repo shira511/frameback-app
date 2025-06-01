@@ -13,6 +13,17 @@ import LoadingSpinner from '../components/ui/LoadingSpinner';
 import Button from '../components/ui/Button';
 import { ArrowLeft, Pause, Play, SkipBack, SkipForward, Plus } from 'lucide-react';
 
+// Define YT namespace for TypeScript
+declare namespace YT {
+  interface Player {
+    playVideo(): void;
+    pauseVideo(): void;
+    seekTo(seconds: number, allowSeekAhead?: boolean): void;
+    getDuration(): number;
+    getCurrentTime(): number;
+  }
+}
+
 const ProjectView: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const { user } = useAuth();
@@ -26,11 +37,9 @@ const ProjectView: React.FC = () => {
   // Video state
   const [videoId, setVideoId] = useState<string | null>(null);
   const [videoReady, setVideoReady] = useState(false);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);  const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [timeToSeek, setTimeToSeek] = useState<number | null>(null);
-  const [playbackRate, setPlaybackRate] = useState(1);
   
   // Feedback form state
   const [isFeedbackFormOpen, setIsFeedbackFormOpen] = useState(false);
@@ -54,17 +63,40 @@ const ProjectView: React.FC = () => {
 
   const handlePlayerReady = (player: YT.Player) => {
     playerRef.current = player;
-  };
-
-  const handleSketchClick = () => {
+  };  const handleSketchClick = () => {
     console.log('[ProjectView] before handleSketchClick', { isPlaying, showDrawingCanvas });
     if (playerRef.current) {
       playerRef.current.pauseVideo();
     }
+    
+    // First pause the video and update playing state
     setIsPlaying(false);
-    setShowDrawingCanvas(true);
-    setIsFeedbackFormOpen(true);
-    console.log('[ProjectView] after handleSketchClick', { isPlaying: false, showDrawingCanvas: true });
+    
+    // Reset feedback form state
+    setIsEditingFeedback(false);
+    setEditingFeedbackId(null);
+    setInitialComment('');
+    setInitialDrawing(null);
+    
+    // Update container dimensions with a slight delay to ensure the player is properly measured
+    setTimeout(() => {
+      if (playerContainerRef.current) {
+        // Get video player dimensions rather than the container
+        const playerElement = playerContainerRef.current.querySelector('.aspect-video');
+        if (playerElement) {
+          const w = playerElement.clientWidth;
+          const h = playerElement.clientHeight;
+          console.log('[ProjectView] updating dimensions in handleSketchClick', { w, h });
+          setContainerWidth(w);
+          setContainerHeight(h);
+        }
+        
+        // After updating dimensions, show the drawing canvas and feedback form
+        setShowDrawingCanvas(true);
+        setIsFeedbackFormOpen(true);
+        console.log('[ProjectView] after handleSketchClick', { isPlaying: false, showDrawingCanvas: true });
+      }
+    }, 50);
   };
 
   const extractYouTubeId = (url: string): string | null => {
@@ -300,27 +332,58 @@ const ProjectView: React.FC = () => {
     } catch (err) {
       console.error('Error fetching feedback:', err);
     }
-  };
-
-  useEffect(() => {
+  };  useEffect(() => {
     const updateDimensions = () => {
       if (playerContainerRef.current) {
-        const w = playerContainerRef.current.offsetWidth;
-        const h = playerContainerRef.current.offsetHeight;
-        console.log('[ProjectView] updateDimensions', { w, h });
-        setContainerWidth(w);
-        setContainerHeight(h);
+        // Get video player dimensions rather than the container
+        const playerElement = playerContainerRef.current.querySelector('.aspect-video');
+        if (playerElement) {
+          const w = playerElement.clientWidth;
+          const h = playerElement.clientHeight;
+          console.log('[ProjectView] updateDimensions on resize', { w, h });
+          setContainerWidth(w);
+          setContainerHeight(h);
+        }
       }
     };
+    
+    // Initial dimensions
     updateDimensions();
+    
+    // Update dimensions when window resizes
     window.addEventListener('resize', updateDimensions);
-    return () => window.removeEventListener('resize', updateDimensions);
+    
+    // Also check dimensions periodically for the first few seconds
+    // to handle cases where the player loads with a delay
+    const dimensionIntervals = [100, 500, 1000, 2000];
+    const timeoutIds = dimensionIntervals.map(delay => 
+      setTimeout(updateDimensions, delay)
+    );
+    
+    return () => {
+      window.removeEventListener('resize', updateDimensions);
+      timeoutIds.forEach(id => clearTimeout(id));
+    };
   }, []);
-
   // Video player callbacks
   const handleVideoReady = (dur: number) => {
     setVideoReady(true);
     setDuration(dur);
+    
+    // Update container dimensions when video is ready
+    setTimeout(() => {
+      if (playerContainerRef.current) {
+        // Get video player dimensions rather than the container
+        const playerElement = playerContainerRef.current.querySelector('.aspect-video');
+        if (playerElement) {
+          const w = playerElement.clientWidth;
+          const h = playerElement.clientHeight;
+          console.log('[ProjectView] updateDimensions in handleVideoReady', { w, h });
+          setContainerWidth(w);
+          setContainerHeight(h);
+        }
+      }
+    }, 100); // Give a bit more time for the player to initialize
   };
 
   const handleTimeUpdate = (time: number) => {
@@ -335,20 +398,9 @@ const ProjectView: React.FC = () => {
   const handlePause = () => {
     setIsPlaying(false);
   };
-
   const handleSeek = (time: number) => {
     setTimeToSeek(time);
     setCurrentTime(time);
-  };
-
-  const handleAddFeedbackClick = () => {
-    setIsPlaying(false);
-    setShowDrawingCanvas(true);
-    setIsFeedbackFormOpen(true);
-    setIsEditingFeedback(false);
-    setEditingFeedbackId(null);
-    setInitialComment('');
-    setInitialDrawing(null);
   };
 
   const handleDrawingChange = (drawingData: DrawingData | null) => {
@@ -574,35 +626,41 @@ const ProjectView: React.FC = () => {
               <h1 className="text-2xl font-bold text-white mb-2">{project.title}</h1>
               {project.description && (
                 <p className="text-slate-300 mb-4">{project.description}</p>
-              )}
-
-              <div ref={playerContainerRef} className="relative">
+              )}              <div ref={playerContainerRef} className="relative">
                 <div className="w-full aspect-video bg-black relative">
                   {videoId && (
-                    <VideoPlayer
-                      videoId={videoId}
-                      onTimeUpdate={handleTimeUpdate}
-                      onVideoReady={handleVideoReady}
-                      onPlay={handlePlay}
-                      onPause={handlePause}
-                      timeToSeek={timeToSeek}
-                      isPlaying={isPlaying}
-                      width={containerWidth}
-                      height={containerHeight}
-                      onPlayerReady={handlePlayerReady}
-                    />
-                  )}
-
-                  {console.log('[ProjectView] render check', { showDrawingCanvas, isPlaying, containerWidth, containerHeight })}
-                  {showDrawingCanvas && containerWidth > 0 && containerHeight > 0 && (
-                    <DrawingCanvas
-                      width={containerWidth}
-                      height={containerHeight}
-                      className="absolute top-0 left-0"
-                      onDrawingChange={handleDrawingChange}
-                      initialDrawing={currentDrawing || initialDrawing}
-                      autoEnableDrawing={true}
-                    />
+                    <>
+                      <VideoPlayer
+                        videoId={videoId}
+                        onTimeUpdate={handleTimeUpdate}
+                        onVideoReady={handleVideoReady}
+                        onPlay={handlePlay}
+                        onPause={handlePause}
+                        timeToSeek={timeToSeek}
+                        isPlaying={isPlaying}
+                        width={containerWidth}
+                        height={containerHeight}
+                        onPlayerReady={handlePlayerReady}
+                      />
+                      
+                      {/* Log rendering information */}
+                      {(() => {
+                        console.log('[ProjectView] render check', { showDrawingCanvas, isPlaying, containerWidth, containerHeight });
+                        return null;
+                      })()}                        {/* Drawing canvas overlay */}
+                      {showDrawingCanvas && (
+                        <div className="absolute top-0 left-0 w-full h-full" style={{ zIndex: 50, pointerEvents: 'auto' }}>
+                          <DrawingCanvas
+                            width={containerWidth || 640}
+                            height={containerHeight || 360}
+                            className="absolute top-0 left-0 w-full h-full"
+                            onDrawingChange={handleDrawingChange}
+                            initialDrawing={currentDrawing || initialDrawing}
+                            autoEnableDrawing={true}
+                          />
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               </div>

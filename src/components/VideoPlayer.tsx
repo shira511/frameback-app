@@ -78,7 +78,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
       }
     };
   }, []);
-
   return (
     <div className="relative w-full" style={{ paddingTop: '56.25%' }}>
       <div className="absolute top-0 left-0 w-full h-full">
