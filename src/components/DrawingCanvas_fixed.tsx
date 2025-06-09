@@ -458,50 +458,28 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
     } catch {
       // Ignore if localStorage is not available
     }
-  }, [TOOLTIP_CACHE_KEY]);  // Add keyboard shortcut handling
+  }, [TOOLTIP_CACHE_KEY]);
+
+  // Add keyboard shortcut handling
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Check if the focus is on an input element (form field)
-      const activeElement = document.activeElement;
-      const isInputFocused = activeElement && (
-        activeElement.tagName === 'INPUT' ||
-        activeElement.tagName === 'TEXTAREA' ||
-        activeElement.contentEditable === 'true' ||
-        (activeElement as any).isContentEditable
-      );
-      
-      // Escape key to disable drawing mode (always available, even in input fields)
-      if (e.key === 'Escape') {
-        setIsDrawingMode(false);
-        return;
-      }
-      
-      // Don't handle other shortcuts if user is typing in a form field
-      if (isInputFocused) {
-        return;
-      }
-      
       if (!isDrawingMode) return;
       
-      // Clear canvas with 'Delete' key only (not Backspace to avoid conflicts with text editing)
-      if (e.key === 'Delete') {
-        e.preventDefault(); // Prevent any default behavior
+      // Clear canvas with 'Delete' or 'Backspace' key
+      if (e.key === 'Delete' || e.key === 'Backspace') {
         handleClear();
       }
       
       // Toggle drawing mode with 'D' key
       if (e.key === 'd' || e.key === 'D') {
-        e.preventDefault();
         setIsDrawingMode(prev => !prev);
       }
       
       // Increase/decrease stroke width with +/- keys
       if (e.key === '+' || e.key === '=') {
-        e.preventDefault();
         setStrokeWidth(w => Math.min(20, w + 1));
       }
       if (e.key === '-' || e.key === '_') {
-        e.preventDefault();
         setStrokeWidth(w => Math.max(1, w - 1));
       }
     };
@@ -518,7 +496,8 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
   }
 
   return (
-    <div className={`relative ${className}`}>      <canvas
+    <div className={`relative ${className}`}>
+      <canvas
         ref={canvasRef}
         width={width}
         height={height}
@@ -547,7 +526,8 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
           zIndex: 100,
           boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)'
         }}
-      >        {/* Drag handle */}
+      >
+        {/* Drag handle */}
         <div 
           className="bg-slate-800 bg-opacity-90 rounded-t-lg shadow-lg p-2 flex items-center gap-2"
           style={{ 
@@ -563,18 +543,17 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
           onTouchCancel={handleTouchDragEnd}
         >
           <GripHorizontal size={16} className="text-slate-400" />
-          <span className="text-sm text-slate-300">
-            Drawing Tools {isDrawingMode ? '(Active)' : '(Inactive)'}
-          </span>
+          <span className="text-sm text-slate-300">Drawing Tools</span>
         </div>
-          {/* Tool buttons */}
+        
+        {/* Tool buttons */}
         <div className="bg-slate-800 bg-opacity-90 rounded-b-lg shadow-lg p-2 flex items-center gap-2">
           <button
             onClick={() => setIsDrawingMode(!isDrawingMode)}
             className={`p-2 rounded-md ${
               isDrawingMode ? 'bg-primary-600 text-white' : 'bg-slate-700 text-slate-300'
             }`}
-            title={isDrawingMode ? 'Disable drawing (ESC)' : 'Enable drawing'}
+            title={isDrawingMode ? 'Disable drawing' : 'Enable drawing'}
             style={{ pointerEvents: 'auto' }}
           >
             <Pencil size={16} />
@@ -650,7 +629,9 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
               </button>
             </>
           )}
-        </div>        {/* Tooltip */}
+        </div>
+        
+        {/* Tooltip */}
         {showTooltip && (
           <div className="absolute bottom-full right-0 mb-2 w-48 p-2 bg-black bg-opacity-80 text-white text-xs rounded-md shadow-lg">
             <div className="font-semibold mb-1">Usage Instructions:</div>
@@ -663,12 +644,6 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
               </div>
               <div>
                 • Use +/- to adjust stroke width
-              </div>
-              <div>
-                • Press Delete to clear drawing
-              </div>
-              <div>
-                • Press ESC to disable drawing mode
               </div>
               <div className="mt-1">
                 <button 

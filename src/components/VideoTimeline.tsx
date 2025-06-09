@@ -1,12 +1,15 @@
 import React, { useRef, useLayoutEffect, useState } from 'react';
 import { formatTime } from '../utils/formatTime';
-import type { TimelineProps, Feedback } from '../types';
+import type { TimelineProps } from '../types';
 
 const VideoTimeline: React.FC<TimelineProps> = ({
   duration,
   currentTime,
   feedback,
   onSeek,
+  onFeedbackClick,
+  highlightedFeedbackId,
+  onFeedbackHighlight,
 }) => {
   const timelineRef = useRef<HTMLDivElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
@@ -64,19 +67,37 @@ const VideoTimeline: React.FC<TimelineProps> = ({
 
   const handleFeedbackMouseLeave = () => {
     setActiveFeedback(null);
-  };
-
-  const handleFeedbackClick = (time: number, feedbackId: string, e: React.MouseEvent) => {
+  };  const handleFeedbackClick = (time: number, feedbackId: string, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent timeline click from also triggering
-    onSeek(time);
+    
+    // Find the feedback item
+    const feedbackItem = feedback.find(f => f.id === feedbackId);
+    
+    // Set highlight for the clicked feedback item
+    if (onFeedbackHighlight) {
+      onFeedbackHighlight(feedbackId);
+    }
+    
+    // Use the enhanced feedback click handler if available, otherwise fall back to basic seek
+    if (onFeedbackClick && feedbackItem) {
+      onFeedbackClick(time, feedbackItem);
+    } else {
+      onSeek(time);
+    }
+    
+    // Set local active feedback for visual feedback
     setActiveFeedback(feedbackId);
+    
+    // Clear active feedback after a short delay
+    setTimeout(() => {
+      setActiveFeedback(null);
+    }, 1000);
   };
 
-  return (
-    <div className="mt-4 mb-8">
+  return (    <div className="mt-3 mb-6">
       <div
         ref={timelineRef}
-        className="relative h-10 bg-slate-800 rounded-md cursor-pointer"
+        className="relative h-6 bg-slate-800 rounded-sm cursor-pointer"
         onClick={handleTimelineClick}
         onMouseMove={handleTimelineMouseMove}
         onMouseLeave={handleTimelineMouseLeave}
@@ -97,40 +118,47 @@ const VideoTimeline: React.FC<TimelineProps> = ({
           ref={playheadRef}
           className="absolute top-0 left-0 h-full w-1 bg-primary-500 will-change-transform backface-visibility-hidden transform-style-preserve-3d transition-transform"
         ></div>
-        
-        {/* Feedback markers */}
-        {feedback.map((item) => (
-          <div
-            key={item.id}
-            className={`absolute w-3 h-3 rounded-full transform -translate-x-1/2 -translate-y-1/2 cursor-pointer z-20 transition-transform duration-200 ${
-              activeFeedback === item.id ? 'scale-150' : 'scale-100'
-            }`}
-            style={{
-              left: `${timeToPercent(item.timestamp)}%`,
-              top: '50%',
-              backgroundColor: item.isChecked ? '#22c55e' : '#4F46E5',
-              boxShadow: activeFeedback === item.id ? '0 0 0 2px rgba(255, 255, 255, 0.5)' : 'none'
-            }}
-            onClick={(e) => handleFeedbackClick(item.timestamp, item.id, e)}
-            onMouseEnter={() => handleFeedbackMouseEnter(item.id)}
-            onMouseLeave={handleFeedbackMouseLeave}
-          >
-            {item.user && (
-              <div
-                className={`absolute bottom-full mb-2 transform -translate-x-1/2 ${
-                  activeFeedback === item.id ? 'opacity-100' : 'opacity-0'
-                } transition-opacity duration-200`}
-              >
-                <img
-                  src={item.user.avatarUrl}
-                  alt={item.user.fullName}
-                  className="w-6 h-6 rounded-full border-2 border-white"
-                  title={item.user.fullName}
-                />
-              </div>
-            )}
-          </div>
-        ))}
+          {/* Feedback markers */}
+        {feedback.map((item) => {
+          const isHighlighted = highlightedFeedbackId === item.id;
+          const isActive = activeFeedback === item.id;
+          
+          return (
+            <div
+              key={item.id}
+              className={`absolute w-3 h-3 rounded-full transform -translate-x-1/2 -translate-y-1/2 cursor-pointer z-20 transition-all duration-200 ${
+                isActive || isHighlighted ? 'scale-150' : 'scale-100'
+              }`}
+              style={{
+                left: `${timeToPercent(item.timestamp)}%`,
+                top: '50%',
+                backgroundColor: item.isChecked ? '#22c55e' : '#4F46E5',
+                boxShadow: isActive || isHighlighted 
+                  ? '0 0 0 2px rgba(255, 255, 255, 0.8), 0 0 8px rgba(255, 255, 255, 0.3)' 
+                  : 'none',
+                border: isHighlighted ? '2px solid rgba(255, 255, 255, 0.9)' : 'none'
+              }}
+              onClick={(e) => handleFeedbackClick(item.timestamp, item.id, e)}
+              onMouseEnter={() => handleFeedbackMouseEnter(item.id)}
+              onMouseLeave={handleFeedbackMouseLeave}
+            >
+              {item.user && (
+                <div
+                  className={`absolute bottom-full mb-2 transform -translate-x-1/2 ${
+                    isActive || isHighlighted ? 'opacity-100' : 'opacity-0'
+                  } transition-opacity duration-200`}
+                >
+                  <img
+                    src={item.user.avatarUrl}
+                    alt={item.user.fullName}
+                    className="w-6 h-6 rounded-full border-2 border-white"
+                    title={item.user.fullName}
+                  />
+                </div>
+              )}
+            </div>
+          );
+        })}
         
         {/* Time tooltip on hover */}
         {hoverTime !== null && hoverPosition !== null && (

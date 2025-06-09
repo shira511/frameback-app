@@ -76,6 +76,9 @@ export interface TimelineProps {
   currentTime: number;
   feedback: Feedback[];
   onSeek: (time: number) => void;
+  onFeedbackClick?: (timestamp: number, feedbackItem?: Feedback) => void;
+  highlightedFeedbackId?: string | null;
+  onFeedbackHighlight?: (feedbackId: string | null) => void;
 }
 
 export interface VideoState {
@@ -85,4 +88,4 @@ export interface VideoState {
   playbackRate: number;
 }
 
-export type FilterOption = 'all' | 'unchecked' | 'mine';
+export type FilterOption = 'all' | 'unchecked' | 'mine' | 'checked';

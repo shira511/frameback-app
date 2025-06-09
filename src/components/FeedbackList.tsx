@@ -1,12 +1,12 @@
-import React, { useState } from 'react';
-import type { Feedback, User, FilterOption } from '../types';
+import React, { useState, useEffect, useRef } from 'react';
+import type { Feedback, FilterOption } from '../types';
 import { formatDistanceToNow } from 'date-fns';
 import { Check, MessageSquare, Trash2, Edit2, Smile, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 interface FeedbackListProps {
   feedback: Feedback[];
-  onFeedbackClick: (timestamp: number) => void;
+  onFeedbackClick: (timestamp: number, feedbackItem?: Feedback) => void;
   onFeedbackStatusChange: (feedbackId: string, isChecked: boolean) => void;
   onFeedbackDelete: (feedbackId: string) => void;
   onFeedbackEdit: (feedback: Feedback) => void;
@@ -14,6 +14,7 @@ interface FeedbackListProps {
   onReplyAdd: (feedbackId: string, comment: string) => void;
   filterOption: FilterOption;
   onFilterChange: (filter: FilterOption) => void;
+  highlightedFeedbackId?: string | null;
 }
 
 const FeedbackList: React.FC<FeedbackListProps> = ({
@@ -26,12 +27,30 @@ const FeedbackList: React.FC<FeedbackListProps> = ({
   onReplyAdd,
   filterOption,
   onFilterChange,
+  highlightedFeedbackId,
 }) => {
   const { user } = useAuth();
   const [replyTexts, setReplyTexts] = useState<{ [key: string]: string }>({});
   const [showReplyFormIds, setShowReplyFormIds] = useState<string[]>([]);
   const [showReactionsIds, setShowReactionsIds] = useState<string[]>([]);
   const [expandedFeedbackIds, setExpandedFeedbackIds] = useState<string[]>([]);
+
+  // Ref for the scrollable container
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const feedbackRefs = useRef<{ [key: string]: HTMLDivElement }>({});
+  // Scroll to highlighted feedback when it changes
+  useEffect(() => {
+    if (highlightedFeedbackId && feedbackRefs.current[highlightedFeedbackId] && scrollContainerRef.current) {
+      const feedbackElement = feedbackRefs.current[highlightedFeedbackId];
+      
+      // Scroll to the highlighted feedback with smooth behavior
+      feedbackElement.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+        inline: 'nearest'
+      });
+    }
+  }, [highlightedFeedbackId]);
 
   const formatTimestamp = (seconds: number): string => {
     const minutes = Math.floor(seconds / 60);
@@ -81,12 +100,13 @@ const FeedbackList: React.FC<FeedbackListProps> = ({
     toggleReactions(feedbackId);
   };
 
-  const commonEmojis = ['👍', '❤️', '😊', '🎉', '👀', '🤔'];
-
-  // Filter feedback based on current filter option
+  const commonEmojis = ['👍', '❤️', '😊', '🎉', '👀', '🤔'];  // Filter feedback based on current filter option
   const filteredFeedback = feedback.filter((item) => {
     if (filterOption === 'unchecked') {
       return !item.isChecked;
+    }
+    if (filterOption === 'checked') {
+      return item.isChecked;
     }
     if (filterOption === 'mine' && user) {
       return item.userId === user.id;
@@ -94,51 +114,80 @@ const FeedbackList: React.FC<FeedbackListProps> = ({
     return true;
   });
 
+  // Calculate counts for each filter option
+  const allCount = feedback.length;
+  const uncheckedCount = feedback.filter(item => !item.isChecked).length;
+  const checkedCount = feedback.filter(item => item.isChecked).length;
+  const mineCount = user ? feedback.filter(item => item.userId === user.id).length : 0;
+
+  // Sort feedback by timestamp (chronological order - earliest first)
+  const sortedFeedback = [...filteredFeedback].sort((a, b) => {
+    return a.timestamp - b.timestamp;
+  });
   return (
-    <div className="bg-slate-800 rounded-lg shadow-lg overflow-hidden">
-      <div className="p-4 border-b border-slate-700 flex justify-between items-center">
-        <h3 className="text-lg font-semibold text-white">
-          Feedback ({filteredFeedback.length})
-        </h3>
-        
-        <div className="space-x-2">
+    <div className="bg-slate-800 rounded-lg shadow-lg overflow-hidden flex flex-col h-full">
+      <div className="p-4 border-b border-slate-700 flex justify-between items-center flex-shrink-0"><h3 className="text-lg font-semibold text-white">
+          Feedback ({sortedFeedback.length})
+        </h3>        <div className="flex flex-wrap gap-2">
           <button
-            className={`px-3 py-1 text-sm rounded-md transition-colors ${
+            className={`px-3 py-1.5 text-sm rounded-md transition-colors font-medium ${
               filterOption === 'all'
-                ? 'bg-primary-600 text-white'
-                : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                ? 'bg-primary-600 text-white shadow-md'
+                : 'bg-slate-700 text-slate-300 hover:bg-slate-600 hover:text-white'
             }`}
             onClick={() => onFilterChange('all')}
           >
-            All
+            All ({allCount})
           </button>
           <button
-            className={`px-3 py-1 text-sm rounded-md transition-colors ${
+            className={`px-3 py-1.5 text-sm rounded-md transition-colors font-medium ${
               filterOption === 'unchecked'
-                ? 'bg-primary-600 text-white'
-                : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                ? 'bg-primary-600 text-white shadow-md'
+                : 'bg-slate-700 text-slate-300 hover:bg-slate-600 hover:text-white'
             }`}
             onClick={() => onFilterChange('unchecked')}
           >
-            Unchecked
+            Unchecked ({uncheckedCount})
           </button>
           <button
-            className={`px-3 py-1 text-sm rounded-md transition-colors ${
+            className={`px-3 py-1.5 text-sm rounded-md transition-colors font-medium ${
+              filterOption === 'checked'
+                ? 'bg-primary-600 text-white shadow-md'
+                : 'bg-slate-700 text-slate-300 hover:bg-slate-600 hover:text-white'
+            }`}
+            onClick={() => onFilterChange('checked')}
+          >
+            Checked ({checkedCount})
+          </button>
+          <button
+            className={`px-3 py-1.5 text-sm rounded-md transition-colors font-medium ${
               filterOption === 'mine'
-                ? 'bg-primary-600 text-white'
-                : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                ? 'bg-primary-600 text-white shadow-md'
+                : 'bg-slate-700 text-slate-300 hover:bg-slate-600 hover:text-white'
             }`}
             onClick={() => onFilterChange('mine')}
           >
-            Mine
+            Mine ({mineCount})
           </button>
         </div>
       </div>
-      
-      <div className="divide-y divide-slate-700 max-h-[calc(100vh-400px)] overflow-y-auto">
-        {filteredFeedback.length > 0 ? (
-          filteredFeedback.map((item) => (
-            <div key={item.id} className="p-4 hover:bg-slate-700/50 transition-colors">
+      <div className="divide-y divide-slate-700 flex-1 overflow-y-auto" ref={scrollContainerRef}>        {sortedFeedback.length > 0 ? (
+          sortedFeedback.map((item) => (<div 
+              key={item.id}              className={`p-4 transition-all duration-300 cursor-pointer ${
+                highlightedFeedbackId === item.id 
+                  ? 'bg-primary-500/20 border-l-4 border-primary-500 shadow-lg transform scale-[1.02] ring-2 ring-primary-500/30' 
+                  : 'hover:bg-slate-700/50'
+              }`}              onClick={() => {
+                onFeedbackClick(item.timestamp, item);
+              }}
+              ref={(el) => {
+                if (el) {
+                  feedbackRefs.current[item.id] = el;
+                } else {
+                  delete feedbackRefs.current[item.id];
+                }
+              }}
+            >
               <div className="flex gap-3">
                 {/* User avatar */}
                 <div className="flex-shrink-0">
@@ -158,9 +207,11 @@ const FeedbackList: React.FC<FeedbackListProps> = ({
                       <div className="flex items-center gap-2">
                         <span className="font-semibold text-white">
                           {item.user?.fullName || 'Unknown User'}
-                        </span>
-                        <button
-                          onClick={() => onFeedbackClick(item.timestamp)}
+                        </span>                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onFeedbackClick(item.timestamp, item);
+                          }}
                           className="text-xs bg-slate-700 hover:bg-slate-600 px-2 py-0.5 rounded text-slate-300"
                         >
                           {formatTimestamp(item.timestamp)}
@@ -170,9 +221,8 @@ const FeedbackList: React.FC<FeedbackListProps> = ({
                             <CheckCircle2 size={12} className="mr-1" />
                             Resolved
                           </span>
-                        )}
-                      </div>
-                      <p className="text-slate-200 mt-1">{item.comment}</p>
+                        )}                      </div>
+                      <p className="text-slate-200 mt-1 break-words whitespace-pre-wrap">{item.comment}</p>
                     </div>
                     
                     <div className="flex space-x-1">
@@ -353,14 +403,17 @@ const FeedbackList: React.FC<FeedbackListProps> = ({
                 </div>
               </div>
             </div>
-          ))
-        ) : (
+          ))        ) : (
           <div className="p-8 text-center text-slate-400">
             <MessageSquare size={40} className="mx-auto mb-3 text-slate-600" />
             <p>No feedback yet</p>
             <p className="text-sm mt-1">
-              {filterOption !== 'all'
-                ? 'Try changing the filter'
+              {filterOption === 'unchecked'
+                ? 'No unchecked feedback found'
+                : filterOption === 'checked'
+                ? 'No checked feedback found'
+                : filterOption === 'mine'
+                ? 'No feedback from you found'
                 : 'Add the first feedback by pausing the video and clicking "Add Feedback"'}
             </p>
           </div>
