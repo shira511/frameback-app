@@ -9,6 +9,8 @@ interface FeedbackFormProps {
   initialComment?: string;
   initialDrawing?: DrawingData | null;
   isEditing?: boolean;
+  onCommentChange?: (comment: string) => void;
+  onDrawingChange?: (drawing: DrawingData | null) => void;
 }
 
 const FeedbackForm: React.FC<FeedbackFormProps> = ({
@@ -18,29 +20,50 @@ const FeedbackForm: React.FC<FeedbackFormProps> = ({
   initialComment = '',
   initialDrawing = null,
   isEditing = false,
-}) => {
-  const [comment, setComment] = useState(initialComment);
+  onCommentChange,
+  onDrawingChange,
+}) => {  const [comment, setComment] = useState(initialComment);
   const [drawingData, setDrawingData] = useState<DrawingData | null>(initialDrawing);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Update comment with callback
+  const handleCommentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newComment = e.target.value;
+    setComment(newComment);
+    onCommentChange?.(newComment);
+  };
+
   useEffect(() => {
-    setComment(initialComment);
+    // Only update if we're editing or if the form is being opened fresh
+    if (isEditing || !comment) {
+      setComment(initialComment);
+    }
+  }, [initialComment, isEditing]);  useEffect(() => {
+    // Always update drawing data when initialDrawing changes
     setDrawingData(initialDrawing);
-    
+    onDrawingChange?.(initialDrawing);
+  }, [initialDrawing, onDrawingChange]);
+
+  // Notify parent when drawing data changes
+  useEffect(() => {
+    onDrawingChange?.(drawingData);
+  }, [drawingData, onDrawingChange]);
+
+  useEffect(() => {
     // Auto-focus the textarea when the form opens
     if (inputRef.current) {
       setTimeout(() => {
         inputRef.current?.focus();
       }, 100);
     }
-  }, [initialComment, initialDrawing]);
+  }, []);
 
   const formatTimestamp = (seconds: number): string => {
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = Math.floor(seconds % 60);
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
-  };
-  const handleSubmit = async (e: React.FormEvent) => {
+  };  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!comment.trim()) {
@@ -49,11 +72,24 @@ const FeedbackForm: React.FC<FeedbackFormProps> = ({
     
     try {
       setIsSubmitting(true);
+      
+      // Submit feedback - this is now non-blocking on the form
       await onSubmit(comment.trim(), drawingData);
-      setComment('');
-      setDrawingData(null);
+      
+      // Clear form after successful submission for new feedback creation
+      if (!isEditing) {
+        setComment('');
+        setDrawingData(null);
+        // Focus back to input for easier continuous feedback creation
+        setTimeout(() => {
+          if (inputRef.current) {
+            inputRef.current.focus();
+          }
+        }, 100);
+      }
     } catch (error) {
       console.error('Error submitting feedback:', error);
+      // Keep form data on error so user doesn't lose their input
     } finally {
       setIsSubmitting(false);
     }
@@ -87,12 +123,11 @@ const FeedbackForm: React.FC<FeedbackFormProps> = ({
         </div>          {/* Horizontal layout with textarea and buttons */}
         <div className="flex flex-col sm:flex-row gap-2 items-start">
           {/* Text input - takes most of the space */}
-          <div className="flex-1 w-full">
-            <textarea
+          <div className="flex-1 w-full">            <textarea
               ref={inputRef}
               id="comment"
               value={comment}
-              onChange={(e) => setComment(e.target.value)}
+              onChange={handleCommentChange}
               onKeyDown={handleKeyDown}
               placeholder="What would you like to say about this frame?"              className="w-full p-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 resize-none text-sm"
               rows={2}

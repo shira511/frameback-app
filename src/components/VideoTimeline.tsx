@@ -39,11 +39,19 @@ const VideoTimeline: React.FC<TimelineProps> = ({
     progressRef.current.style.transform = `scaleX(${pct})`;
     playheadRef.current.style.left = `${pct * 100}%`;
   }, [currentTime, duration]);
-
   const handleTimelineClick = (e: React.MouseEvent) => {
     if (!timelineRef.current) return;
     
     const time = positionToTime(e.clientX);
+    
+    // Check if there's feedback near this time (within 1 second tolerance)
+    const nearbyFeedback = feedback.find(f => Math.abs(f.timestamp - time) <= 1);
+    
+    // If no nearby feedback and we have a highlight clearing function, clear the highlight
+    if (!nearbyFeedback && onFeedbackHighlight) {
+      onFeedbackHighlight(null);
+    }
+    
     onSeek(time);
   };
 

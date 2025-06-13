@@ -17,19 +17,21 @@ interface FeedbackListProps {
   highlightedFeedbackId?: string | null;
 }
 
-const FeedbackList: React.FC<FeedbackListProps> = ({
-  feedback,
-  onFeedbackClick,
-  onFeedbackStatusChange,
-  onFeedbackDelete,
-  onFeedbackEdit,
-  onReactionAdd,
-  onReplyAdd,
-  filterOption,
-  onFilterChange,
-  highlightedFeedbackId,
-}) => {
+const FeedbackList: React.FC<FeedbackListProps> = (props) => {
+  const { 
+    feedback, 
+    filterOption, 
+    onFilterChange, 
+    onFeedbackClick, 
+    onFeedbackStatusChange,
+    onFeedbackDelete,
+    onFeedbackEdit,
+    onReactionAdd,
+    onReplyAdd,
+    highlightedFeedbackId 
+  } = props;
   const { user } = useAuth();
+  
   const [replyTexts, setReplyTexts] = useState<{ [key: string]: string }>({});
   const [showReplyFormIds, setShowReplyFormIds] = useState<string[]>([]);
   const [showReactionsIds, setShowReactionsIds] = useState<string[]>([]);
@@ -38,6 +40,7 @@ const FeedbackList: React.FC<FeedbackListProps> = ({
   // Ref for the scrollable container
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const feedbackRefs = useRef<{ [key: string]: HTMLDivElement }>({});
+
   // Scroll to highlighted feedback when it changes
   useEffect(() => {
     if (highlightedFeedbackId && feedbackRefs.current[highlightedFeedbackId] && scrollContainerRef.current) {
@@ -57,50 +60,8 @@ const FeedbackList: React.FC<FeedbackListProps> = ({
     const remainingSeconds = Math.floor(seconds % 60);
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
-
-  const toggleReplyForm = (feedbackId: string) => {
-    setShowReplyFormIds((prev) =>
-      prev.includes(feedbackId)
-        ? prev.filter((id) => id !== feedbackId)
-        : [...prev, feedbackId]
-    );
-  };
-
-  const toggleReactions = (feedbackId: string) => {
-    setShowReactionsIds((prev) =>
-      prev.includes(feedbackId)
-        ? prev.filter((id) => id !== feedbackId)
-        : [...prev, feedbackId]
-    );
-  };
-
-  const toggleExpandedFeedback = (feedbackId: string) => {
-    setExpandedFeedbackIds((prev) =>
-      prev.includes(feedbackId)
-        ? prev.filter((id) => id !== feedbackId)
-        : [...prev, feedbackId]
-    );
-  };
-
-  const handleReplyChange = (feedbackId: string, text: string) => {
-    setReplyTexts((prev) => ({ ...prev, [feedbackId]: text }));
-  };
-
-  const handleReplySubmit = (feedbackId: string) => {
-    const replyText = replyTexts[feedbackId];
-    if (replyText && replyText.trim()) {
-      onReplyAdd(feedbackId, replyText.trim());
-      setReplyTexts((prev) => ({ ...prev, [feedbackId]: '' }));
-      toggleReplyForm(feedbackId);
-    }
-  };
-
-  const handleReactionClick = (feedbackId: string, emoji: string) => {
-    onReactionAdd(feedbackId, emoji);
-    toggleReactions(feedbackId);
-  };
-
-  const commonEmojis = ['👍', '❤️', '😊', '🎉', '👀', '🤔'];  // Filter feedback based on current filter option
+  
+  // Filter feedback based on current filter option
   const filteredFeedback = feedback.filter((item) => {
     if (filterOption === 'unchecked') {
       return !item.isChecked;
@@ -124,11 +85,15 @@ const FeedbackList: React.FC<FeedbackListProps> = ({
   const sortedFeedback = [...filteredFeedback].sort((a, b) => {
     return a.timestamp - b.timestamp;
   });
+  
   return (
     <div className="bg-slate-800 rounded-lg shadow-lg overflow-hidden flex flex-col h-full">
-      <div className="p-4 border-b border-slate-700 flex justify-between items-center flex-shrink-0"><h3 className="text-lg font-semibold text-white">
+      <div className="p-4 border-b border-slate-700 flex justify-between items-center flex-shrink-0">
+        <h3 className="text-lg font-semibold text-white">
           Feedback ({sortedFeedback.length})
-        </h3>        <div className="flex flex-wrap gap-2">
+        </h3>
+        
+        <div className="flex flex-wrap gap-2">
           <button
             className={`px-3 py-1.5 text-sm rounded-md transition-colors font-medium ${
               filterOption === 'all'
@@ -171,243 +136,277 @@ const FeedbackList: React.FC<FeedbackListProps> = ({
           </button>
         </div>
       </div>
-      <div className="divide-y divide-slate-700 flex-1 overflow-y-auto" ref={scrollContainerRef}>        {sortedFeedback.length > 0 ? (
-          sortedFeedback.map((item) => (<div 
-              key={item.id}              className={`p-4 transition-all duration-300 cursor-pointer ${
-                highlightedFeedbackId === item.id 
-                  ? 'bg-primary-500/20 border-l-4 border-primary-500 shadow-lg transform scale-[1.02] ring-2 ring-primary-500/30' 
-                  : 'hover:bg-slate-700/50'
-              }`}              onClick={() => {
-                onFeedbackClick(item.timestamp, item);
-              }}
-              ref={(el) => {
-                if (el) {
-                  feedbackRefs.current[item.id] = el;
-                } else {
-                  delete feedbackRefs.current[item.id];
-                }
-              }}
-            >
-              <div className="flex gap-3">
-                {/* User avatar */}
+
+      <div 
+        ref={scrollContainerRef}
+        className="divide-y divide-slate-700 flex-1 overflow-y-auto overflow-x-hidden"
+      >
+        {sortedFeedback.map((item) => (          <div 
+            key={item.id}
+            ref={el => {
+              if (el) {
+                feedbackRefs.current[item.id] = el;
+              }
+            }}
+            className={`p-4 transition-all duration-300 cursor-pointer ${
+              highlightedFeedbackId === item.id 
+                ? 'bg-primary-500/20 border-l-4 border-primary-500 shadow-lg ring-2 ring-primary-500/30' 
+                : 'hover:bg-slate-750'
+            }`}
+            onClick={() => onFeedbackClick(item.timestamp, item)}
+          >
+            {/* Header with user info and timestamp */}
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-3">
                 <div className="flex-shrink-0">
-                  {item.user && (
-                    <img
-                      src={item.user.avatarUrl}
-                      alt={item.user.fullName}
-                      className="w-10 h-10 rounded-full object-cover"
-                    />
-                  )}
+                  <div className="w-8 h-8 bg-gradient-to-br from-primary-500 to-purple-600 rounded-full flex items-center justify-center text-white text-sm font-semibold">
+                    {(item.user?.fullName || 'U').charAt(0).toUpperCase()}
+                  </div>
                 </div>
-                
-                {/* Content */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-white">
-                          {item.user?.fullName || 'Unknown User'}
-                        </span>                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onFeedbackClick(item.timestamp, item);
-                          }}
-                          className="text-xs bg-slate-700 hover:bg-slate-600 px-2 py-0.5 rounded text-slate-300"
-                        >
-                          {formatTimestamp(item.timestamp)}
-                        </button>
-                        {item.isChecked && (
-                          <span className="text-xs bg-success-500 bg-opacity-20 text-success-500 px-2 py-0.5 rounded-full flex items-center">
-                            <CheckCircle2 size={12} className="mr-1" />
-                            Resolved
-                          </span>
-                        )}                      </div>
-                      <p className="text-slate-200 mt-1 break-words whitespace-pre-wrap">{item.comment}</p>
-                    </div>
-                    
-                    <div className="flex space-x-1">
-                      {/* Mark as checked/unchecked button */}
-                      <button
-                        onClick={() => onFeedbackStatusChange(item.id, !item.isChecked)}
-                        className={`p-1.5 rounded-md ${
-                          item.isChecked
-                            ? 'bg-success-500 bg-opacity-20 text-success-500'
-                            : 'bg-slate-700 text-slate-400 hover:text-white hover:bg-slate-600'
-                        }`}
-                        title={item.isChecked ? 'Mark as unresolved' : 'Mark as resolved'}
-                      >
-                        <Check size={16} />
-                      </button>
-                      
-                      {/* Edit button (only for own feedback) */}
-                      {user && item.userId === user.id && (
-                        <button
-                          onClick={() => onFeedbackEdit(item)}
-                          className="p-1.5 bg-slate-700 text-slate-400 hover:text-white hover:bg-slate-600 rounded-md"
-                          title="Edit feedback"
-                        >
-                          <Edit2 size={16} />
-                        </button>
-                      )}
-                      
-                      {/* Delete button (only for own feedback) */}
-                      {user && item.userId === user.id && (
-                        <button
-                          onClick={() => onFeedbackDelete(item.id)}
-                          className="p-1.5 bg-slate-700 text-slate-400 hover:text-error-500 hover:bg-slate-600 rounded-md"
-                          title="Delete feedback"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  
-                  {/* Timestamp and time ago */}
-                  <div className="text-xs text-slate-400 mt-1">
-                    {new Date(item.createdAt).toLocaleString()} • {formatDistanceToNow(new Date(item.createdAt), { addSuffix: true })}
-                  </div>
-                  
-                  {/* Reactions */}
-                  {item.reactions && item.reactions.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mt-2">
-                      {/* Group reactions by emoji and count them */}
-                      {Object.entries(
-                        item.reactions.reduce((acc, reaction) => {
-                          acc[reaction.emoji] = (acc[reaction.emoji] || 0) + 1;
-                          return acc;
-                        }, {} as Record<string, number>)
-                      ).map(([emoji, count]) => (
-                        <div
-                          key={emoji}
-                          className="bg-slate-700 px-2 py-0.5 rounded-full text-white text-xs flex items-center"
-                        >
-                          <span className="mr-1">{emoji}</span>
-                          <span>{count}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  
-                  {/* Replies */}
-                  {item.replies && item.replies.length > 0 && (
-                    <div className="mt-3">
-                      <button
-                        onClick={() => toggleExpandedFeedback(item.id)}
-                        className="text-sm text-primary-400 hover:text-primary-300 flex items-center"
-                      >
-                        <MessageSquare size={14} className="mr-1" />
-                        {expandedFeedbackIds.includes(item.id)
-                          ? 'Hide replies'
-                          : `${item.replies.length} ${
-                              item.replies.length === 1 ? 'reply' : 'replies'
-                            }`}
-                      </button>
-                      
-                      {expandedFeedbackIds.includes(item.id) && (
-                        <div className="mt-2 pl-2 border-l-2 border-slate-700 space-y-3">
-                          {item.replies.map((reply) => (
-                            <div key={reply.id} className="flex gap-2">
-                              {/* Reply user avatar */}
-                              {reply.user && (
-                                <img
-                                  src={reply.user.avatarUrl}
-                                  alt={reply.user.fullName}
-                                  className="w-7 h-7 rounded-full object-cover"
-                                />
-                              )}
-                              
-                              {/* Reply content */}
-                              <div>
-                                <div className="flex items-center">
-                                  <span className="font-medium text-sm text-white">
-                                    {reply.user?.fullName || 'Unknown User'}
-                                  </span>
-                                  <span className="text-xs text-slate-400 ml-2">
-                                    {formatDistanceToNow(
-                                      new Date(reply.createdAt),
-                                      { addSuffix: true }
-                                    )}
-                                  </span>
-                                </div>
-                                <p className="text-slate-300 text-sm">{reply.comment}</p>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  
-                  {/* Action buttons */}
-                  <div className="mt-3 flex gap-2">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-white">
+                      {item.user?.fullName || 'Unknown User'}
+                    </span>
+                    {item.isChecked && (
+                      <span className="text-xs bg-success-500 bg-opacity-20 text-success-500 px-2 py-0.5 rounded-full flex items-center">
+                        <CheckCircle2 size={12} className="mr-1" />
+                        Resolved
+                      </span>
+                    )}
+                  </div>                  <div className="flex items-center gap-2 text-xs text-slate-400">
                     <button
-                      onClick={() => toggleReplyForm(item.id)}
-                      className="text-xs flex items-center text-slate-300 hover:text-white"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onFeedbackClick(item.timestamp, item);
+                      }}
+                      className="hover:text-primary-400 transition-colors font-mono"
                     >
-                      <MessageSquare size={14} className="mr-1" />
-                      Reply
+                      {formatTimestamp(item.timestamp)}
                     </button>
-                    
-                    <button
-                      onClick={() => toggleReactions(item.id)}
-                      className="text-xs flex items-center text-slate-300 hover:text-white"
-                    >
-                      <Smile size={14} className="mr-1" />
-                      React
-                    </button>
+                    <span>•</span>
+                    <span>
+                      {formatDistanceToNow(new Date(item.createdAt), { addSuffix: true })}
+                    </span>
                   </div>
-                  
-                  {/* Reaction picker */}
-                  {showReactionsIds.includes(item.id) && (
-                    <div className="mt-2 bg-slate-700 p-2 rounded-md flex space-x-2">
-                      {commonEmojis.map((emoji) => (
-                        <button
-                          key={emoji}
-                          className="text-lg hover:bg-slate-600 p-1 rounded"
-                          onClick={() => handleReactionClick(item.id, emoji)}
-                        >
-                          {emoji}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  
-                  {/* Reply form */}
-                  {showReplyFormIds.includes(item.id) && (
-                    <div className="mt-2">
-                      <textarea
-                        value={replyTexts[item.id] || ''}
-                        onChange={(e) => handleReplyChange(item.id, e.target.value)}
-                        placeholder="Write a reply..."
-                        className="w-full p-2 bg-slate-700 border border-slate-600 rounded-md text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                        rows={2}
-                      />
-                      <div className="mt-2 flex justify-end space-x-2">
-                        <button
-                          onClick={() => toggleReplyForm(item.id)}
-                          className="px-3 py-1 text-xs bg-slate-700 text-slate-300 rounded hover:bg-slate-600"
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          onClick={() => handleReplySubmit(item.id)}
-                          className="px-3 py-1 text-xs bg-primary-600 text-white rounded hover:bg-primary-700"
-                          disabled={!replyTexts[item.id] || !replyTexts[item.id].trim()}
-                        >
-                          Reply
-                        </button>
-                      </div>
-                    </div>
-                  )}
                 </div>
               </div>
+              
+              {/* Action buttons */}
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onFeedbackStatusChange(item.id, !item.isChecked);
+                  }}
+                  className={`p-1.5 rounded-md transition-colors ${
+                    item.isChecked
+                      ? 'bg-success-500 bg-opacity-20 text-success-500 hover:bg-opacity-30'
+                      : 'bg-slate-600 text-slate-400 hover:text-white hover:bg-slate-500'
+                  }`}
+                  title={item.isChecked ? 'Mark as unresolved' : 'Mark as resolved'}
+                >
+                  <Check size={16} />
+                </button>
+                
+                {user && item.userId === user.id && (
+                  <>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onFeedbackEdit(item);
+                      }}
+                      className="p-1.5 bg-slate-600 text-slate-400 hover:text-white hover:bg-slate-500 rounded-md transition-colors"
+                      title="Edit feedback"
+                    >
+                      <Edit2 size={16} />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onFeedbackDelete(item.id);
+                      }}
+                      className="p-1.5 bg-slate-600 text-slate-400 hover:text-red-400 hover:bg-slate-500 rounded-md transition-colors"
+                      title="Delete feedback"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>            {/* Feedback comment */}
+            <div 
+              className="text-white mb-3 leading-relaxed"
+            >
+              {item.comment}
             </div>
-          ))        ) : (
+
+            {/* Reactions */}
+            {item.reactions && item.reactions.length > 0 && (
+              <div className="flex flex-wrap gap-1 mb-3">
+                {Object.entries(
+                  item.reactions.reduce((acc: { [key: string]: number }, reaction) => {
+                    acc[reaction.emoji] = (acc[reaction.emoji] || 0) + 1;
+                    return acc;
+                  }, {})
+                ).map(([emoji, count]) => (
+                  <button
+                    key={emoji}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onReactionAdd(item.id, emoji);
+                    }}
+                    className="flex items-center gap-1 px-2 py-1 bg-slate-700 hover:bg-slate-600 rounded-full text-sm transition-colors"
+                  >
+                    <span>{emoji}</span>
+                    <span className="text-slate-300">{count}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Action buttons row */}
+            <div className="flex items-center gap-4 text-sm">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const newShowIds = showReactionsIds.includes(item.id)
+                    ? showReactionsIds.filter(id => id !== item.id)
+                    : [...showReactionsIds, item.id];
+                  setShowReactionsIds(newShowIds);
+                }}
+                className="flex items-center gap-1 text-slate-400 hover:text-white transition-colors"
+              >
+                <Smile size={16} />
+                <span>React</span>
+              </button>
+              
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const newShowIds = showReplyFormIds.includes(item.id)
+                    ? showReplyFormIds.filter(id => id !== item.id)
+                    : [...showReplyFormIds, item.id];
+                  setShowReplyFormIds(newShowIds);
+                }}
+                className="flex items-center gap-1 text-slate-400 hover:text-white transition-colors"
+              >
+                <MessageSquare size={16} />
+                <span>Reply</span>
+              </button>
+
+              {item.replies && item.replies.length > 0 && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const newExpandedIds = expandedFeedbackIds.includes(item.id)
+                      ? expandedFeedbackIds.filter(id => id !== item.id)
+                      : [...expandedFeedbackIds, item.id];
+                    setExpandedFeedbackIds(newExpandedIds);
+                  }}
+                  className="text-primary-400 hover:text-primary-300 transition-colors"
+                >
+                  {expandedFeedbackIds.includes(item.id) ? 'Hide' : 'Show'} {item.replies.length} {item.replies.length === 1 ? 'reply' : 'replies'}
+                </button>
+              )}
+            </div>
+
+            {/* Reaction picker */}
+            {showReactionsIds.includes(item.id) && (
+              <div className="mt-3 p-3 bg-slate-700 rounded-lg">
+                <div className="flex flex-wrap gap-2">
+                  {['👍', '❤️', '😄', '😮', '😢', '😡', '🎉', '🚀'].map((emoji) => (
+                    <button
+                      key={emoji}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onReactionAdd(item.id, emoji);
+                        setShowReactionsIds(showReactionsIds.filter(id => id !== item.id));
+                      }}
+                      className="text-2xl hover:scale-125 transition-transform p-1 rounded"
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Reply form */}
+            {showReplyFormIds.includes(item.id) && (
+              <div className="mt-3 p-3 bg-slate-700 rounded-lg">
+                <textarea
+                  value={replyTexts[item.id] || ''}
+                  onChange={(e) => {
+                    setReplyTexts(prev => ({
+                      ...prev,
+                      [item.id]: e.target.value
+                    }));
+                  }}
+                  placeholder="Write a reply..."
+                  className="w-full p-2 bg-slate-600 border border-slate-500 rounded-md text-white placeholder-slate-400 resize-none focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  rows={3}
+                />
+                <div className="flex justify-end gap-2 mt-2">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowReplyFormIds(showReplyFormIds.filter(id => id !== item.id));
+                      setReplyTexts(prev => ({ ...prev, [item.id]: '' }));
+                    }}
+                    className="px-3 py-1 text-slate-400 hover:text-white transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const replyText = replyTexts[item.id]?.trim();
+                      if (replyText) {
+                        onReplyAdd(item.id, replyText);
+                        setReplyTexts(prev => ({ ...prev, [item.id]: '' }));
+                        setShowReplyFormIds(showReplyFormIds.filter(id => id !== item.id));
+                      }
+                    }}
+                    disabled={!replyTexts[item.id]?.trim()}
+                    className="px-3 py-1 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Reply
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Replies */}
+            {item.replies && item.replies.length > 0 && expandedFeedbackIds.includes(item.id) && (
+              <div className="mt-3 pl-4 border-l-2 border-slate-600 space-y-3">
+                {item.replies.map((reply) => (
+                  <div key={reply.id} className="bg-slate-750 p-3 rounded-lg">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-6 h-6 bg-gradient-to-br from-primary-500 to-purple-600 rounded-full flex items-center justify-center text-white text-xs font-semibold">
+                        {(reply.user?.fullName || 'U').charAt(0).toUpperCase()}
+                      </div>
+                      <span className="font-medium text-white text-sm">
+                        {reply.user?.fullName || 'Unknown User'}
+                      </span>
+                      <span className="text-xs text-slate-400">
+                        {formatDistanceToNow(new Date(reply.createdAt), { addSuffix: true })}
+                      </span>
+                    </div>
+                    <div className="text-slate-200 text-sm leading-relaxed">
+                      {reply.comment}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+        
+        {sortedFeedback.length === 0 && (
           <div className="p-8 text-center text-slate-400">
             <MessageSquare size={40} className="mx-auto mb-3 text-slate-600" />
-            <p>No feedback yet</p>
-            <p className="text-sm mt-1">
+            <p>No feedback yet</p>            <p className="text-sm mt-1">
               {filterOption === 'unchecked'
                 ? 'No unchecked feedback found'
                 : filterOption === 'checked'

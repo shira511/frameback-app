@@ -1,20 +1,15 @@
-import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Layout, MessageSquare, Pencil, Clock, Users } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import Button from '../components/ui/Button';
 
 const Home: React.FC = () => {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, error } = useAuth();
   const navigate = useNavigate();
-
-  useEffect(() => {
-    if (user && !isLoading) {
-      navigate('/dashboard');
-    }
-  }, [user, isLoading, navigate]);
-
-  return (
+  console.log('Home component - Auth status:', { user: !!user, isLoading, error: error?.message });
+  console.log('Environment check:', {
+    supabaseConfigured: !!(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY)
+  });  return (
     <div className="min-h-screen bg-slate-900">
       {/* Header */}
       <header className="bg-slate-800 shadow-md">

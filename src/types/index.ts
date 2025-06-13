@@ -12,6 +12,19 @@ export interface Project {
   videoUrl: string;
   createdAt: string;
   userId: string;
+  currentVersionId?: string;
+}
+
+export interface ProjectVersion {
+  id: string;
+  projectId: string;
+  versionNumber: number;
+  title: string;
+  videoUrl: string;
+  description: string | null;
+  createdAt: string;
+  userId: string;
+  isActive: boolean;
 }
 
 export interface DrawingData {
@@ -34,6 +47,7 @@ export interface Point {
 export interface Feedback {
   id: string;
   projectId: string;
+  versionId: string;
   userId: string;
   user?: User;
   timestamp: number;

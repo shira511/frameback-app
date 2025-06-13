@@ -3,7 +3,6 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../services/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import type { Project, ProjectVersion, Feedback, DrawingData, FilterOption } from '../types';
-import { versionService } from '../services/versionService';
 import AppLayout from '../components/layouts/AppLayout';
 import VideoPlayer from '../components/VideoPlayer';
 import VideoTimeline from '../components/VideoTimeline';
@@ -48,12 +47,16 @@ const ProjectView: React.FC = () => {
   const [isPlaying, setIsPlaying] = useState(false);  const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [timeToSeek, setTimeToSeek] = useState<number | null>(null);
-    // Feedback form state
+  // Feedback form state
   const [isFeedbackFormOpen, setIsFeedbackFormOpen] = useState(true);
   const [isEditingFeedback, setIsEditingFeedback] = useState(false);
   const [editingFeedbackId, setEditingFeedbackId] = useState<string | null>(null);
   const [initialComment, setInitialComment] = useState('');
   const [initialDrawing, setInitialDrawing] = useState<DrawingData | null>(null);
+  
+  // State to preserve form content during drawing tool activation
+  const [currentFormComment, setCurrentFormComment] = useState('');
+  const [currentFormDrawing, setCurrentFormDrawing] = useState<DrawingData | null>(null);
     // Drawing canvas state
   const [showDrawingCanvas, setShowDrawingCanvas] = useState(false);
   const [currentDrawing, setCurrentDrawing] = useState<DrawingData | null>(null);
@@ -67,9 +70,17 @@ const ProjectView: React.FC = () => {
   // Refs
   const playerContainerRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<YT.Player>();
-
   const handlePlayerReady = (player: YT.Player) => {
     playerRef.current = player;
+  };
+
+  // Handlers for form content changes
+  const handleFormCommentChange = (comment: string) => {
+    setCurrentFormComment(comment);
+  };
+
+  const handleFormDrawingChange = (drawing: DrawingData | null) => {
+    setCurrentFormDrawing(drawing);
   };  const handleSketchClick = () => {
     console.log('[ProjectView] before handleSketchClick', { isPlaying, showDrawingCanvas });
     if (playerRef.current) {
@@ -79,11 +90,23 @@ const ProjectView: React.FC = () => {
     // First pause the video and update playing state
     setIsPlaying(false);
     
-    // Reset feedback form state
-    setIsEditingFeedback(false);
-    setEditingFeedbackId(null);
-    setInitialComment('');
+    // Clear any previous drawing states to start fresh session
+    setCurrentDrawing(null);
     setInitialDrawing(null);
+    setIsDisplayingFeedbackDrawing(false);
+    
+    // Don't reset feedback form state if form is already open
+    // This preserves any text that was already entered
+    if (!isFeedbackFormOpen) {
+      setIsEditingFeedback(false);
+      setEditingFeedbackId(null);
+      setInitialComment('');
+      setCurrentFormComment('');
+      setCurrentFormDrawing(null);
+    }
+    // Always clear currentFormDrawing when starting a new drawing session
+    // This ensures we start with a clean slate for drawing
+    setCurrentFormDrawing(null);
       // Update container dimensions with a slight delay to ensure the player is properly measured
     setTimeout(() => {
       if (playerContainerRef.current) {
@@ -168,10 +191,15 @@ const ProjectView: React.FC = () => {
           createdAt: projectData.created_at,
           userId: projectData.user_id
         };
-          setProject(formattedProject);
         
-        // Fetch versions and set up version management
-        await fetchVersions();
+        setProject(formattedProject);
+        
+        const youtubeId = extractYouTubeId(formattedProject.videoUrl);
+        if (youtubeId) {
+          setVideoId(youtubeId);
+        } else {
+          throw new Error('Invalid YouTube URL');
+        }
         
         await fetchFeedback();
       } catch (err) {
@@ -237,9 +265,18 @@ const ProjectView: React.FC = () => {
       setTimeout(updateVideoContainerDimensions, 100);
     }
   }, [videoReady]);
-
   useEffect(() => {
     if (!projectId) return;
+    
+    // Debounce feedback fetching to avoid excessive API calls
+    let debounceTimer: NodeJS.Timeout;
+    
+    const debouncedFetchFeedback = () => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        fetchFeedback();
+      }, 300); // 300ms debounce
+    };
     
     const feedbackSubscription = supabase
       .channel(`project-${projectId}-feedback`)
@@ -252,86 +289,77 @@ const ProjectView: React.FC = () => {
           filter: `project_id=eq.${projectId}`
         },
         () => {
-          fetchFeedback();
+          debouncedFetchFeedback();
         }
       )
       .subscribe();
     
     return () => {
+      clearTimeout(debounceTimer);
       supabase.removeChannel(feedbackSubscription);
     };
   }, [projectId]);
-
   const fetchFeedback = async () => {
     if (!projectId) return;
-      try {
+    
+    try {
       // Fetch feedback data first
-      let query = supabase
+      const { data: feedbackData, error: feedbackError } = await supabase
         .from('feedback')
         .select('*')
-        .eq('project_id', projectId);
-      
-      // Filter by current version if available
-      if (currentVersion) {
-        query = query.eq('version_id', currentVersion.id);
-      }
-      
-      const { data: feedbackData, error: feedbackError } = await query
+        .eq('project_id', projectId)
         .order('timestamp', { ascending: true });
       
       if (feedbackError) throw feedbackError;
       
-      if (!feedbackData) {
+      if (!feedbackData || feedbackData.length === 0) {
         setFeedback([]);
         return;
       }
       
       const userIds = Array.from(new Set(feedbackData.map(item => item.user_id)));
-      
-      const { data: profilesData, error: profilesError } = await supabase
-        .from('profiles')
-        .select('*')
-        .in('id', userIds);
-      
-      if (profilesError) throw profilesError;
-      
-      const userProfiles = profilesData || [];
-      
       const feedbackIds = feedbackData.map(item => item.id);
       
-      const { data: reactionsData, error: reactionsError } = await supabase
-        .from('reactions')
-        .select('*')
-        .in('feedback_id', feedbackIds);
-      
-      if (reactionsError) throw reactionsError;
-      
-      const { data: repliesData, error: repliesError } = await supabase
-        .from('replies')
-        .select('*')
-        .in('feedback_id', feedbackIds)
-        .order('created_at', { ascending: true });
-      
-      if (repliesError) throw repliesError;
-      
-      const replyUserIds = repliesData 
-        ? Array.from(new Set(repliesData.map(reply => reply.user_id)))
-        : [];
-      
-      let replyUserProfiles: any[] = [];
-      
-      if (replyUserIds.length > 0) {
-        const { data: replyProfilesData, error: replyProfilesError } = await supabase
+      // Execute all related queries in parallel for better performance
+      const [profilesResult, reactionsResult, repliesResult] = await Promise.all([
+        supabase
           .from('profiles')
           .select('*')
-          .in('id', replyUserIds);
-        
-        if (replyProfilesError) throw replyProfilesError;
-        
-        replyUserProfiles = replyProfilesData || [];
-      }
+          .in('id', userIds),
+        supabase
+          .from('reactions')
+          .select('*')
+          .in('feedback_id', feedbackIds),
+        supabase
+          .from('replies')
+          .select('*')
+          .in('feedback_id', feedbackIds)
+          .order('created_at', { ascending: true })
+      ]);
       
-      const formattedFeedback: Feedback[] = feedbackData.map(item => {
+      if (profilesResult.error) throw profilesResult.error;
+      if (reactionsResult.error) throw reactionsResult.error;
+      if (repliesResult.error) throw repliesResult.error;
+      
+      const userProfiles = profilesResult.data || [];
+      const reactionsData = reactionsResult.data;
+      const repliesData = repliesResult.data;
+      
+      // Get reply user profiles if there are replies
+      let replyUserProfiles: any[] = [];
+      if (repliesData && repliesData.length > 0) {
+        const replyUserIds = Array.from(new Set(repliesData.map(reply => reply.user_id)));
+        if (replyUserIds.length > 0) {
+          const { data: replyProfilesData, error: replyProfilesError } = await supabase
+            .from('profiles')
+            .select('*')
+            .in('id', replyUserIds);
+          
+          if (replyProfilesError) throw replyProfilesError;
+          replyUserProfiles = replyProfilesData || [];
+        }
+      }
+        const formattedFeedback: Feedback[] = feedbackData.map(item => {
         const userProfile = userProfiles.find(profile => profile.id === item.user_id);
         
         const itemReactions = reactionsData
@@ -350,6 +378,43 @@ const ProjectView: React.FC = () => {
                   id: reply.id,
                   feedbackId: reply.feedback_id,
                   userId: reply.user_id,
+                  user: replyUserProfile ? {
+                    id: replyUserProfile.id,
+                    fullName: replyUserProfile.full_name,
+                    avatarUrl: replyUserProfile.avatar_url
+                  } : undefined,
+                  comment: reply.comment,
+                  createdAt: reply.created_at
+                };
+              })
+          : [];
+
+        return {
+          id: item.id,
+          projectId: item.project_id,
+          versionId: item.version_id || currentVersion?.id || '', // 暫定的にcurrentVersionのIDを使用
+          userId: item.user_id,
+          user: userProfile ? {
+            id: userProfile.id,
+            fullName: userProfile.full_name,
+            avatarUrl: userProfile.avatar_url
+          } : undefined,
+          timestamp: item.timestamp,
+          comment: item.comment,
+          drawingData: item.drawing_data,
+          isChecked: item.is_checked,
+          createdAt: item.created_at,
+          reactions: itemReactions.map(reaction => ({
+            id: reaction.id,
+            feedbackId: reaction.feedback_id,
+            userId: reaction.user_id,
+            emoji: reaction.emoji,
+            createdAt: reaction.created_at
+          })),
+          replies: itemReplies
+        };
+      });
+                  userId: reply.user_id,
                   user: replyUserProfile
                     ? {
                         id: replyUserProfile.id,
@@ -362,10 +427,10 @@ const ProjectView: React.FC = () => {
                 };
               })
           : [];
-          return {
+        
+        return {
           id: item.id,
           projectId: item.project_id,
-          versionId: item.version_id || currentVersion?.id || '', 
           userId: item.user_id,
           user: userProfile
             ? {
@@ -453,8 +518,7 @@ const ProjectView: React.FC = () => {
         }
       }
     }, 100); // Give a bit more time for the player to initialize
-  };
-  const handleTimeUpdate = (time: number) => {
+  };  const handleTimeUpdate = (time: number) => {
     setCurrentTime(time);
     
     // Clear displayed feedback drawing if user navigates away from the feedback timestamp
@@ -466,10 +530,25 @@ const ProjectView: React.FC = () => {
       );
       
       if (!hasMatchingFeedback) {
+        console.log('[ProjectView] clearing displayed feedback drawing - no matching feedback at time', time);
         setShowDrawingCanvas(false);
         setInitialDrawing(null);
         setCurrentDrawing(null);
         setIsDisplayingFeedbackDrawing(false);
+      }
+    }
+    
+    // Also clear if we have drawing canvas showing but no nearby feedback and form is closed
+    if (showDrawingCanvas && !isFeedbackFormOpen && !isDisplayingFeedbackDrawing) {
+      const hasMatchingFeedback = feedback.some(f => 
+        Math.abs(f.timestamp - time) < 1.0
+      );
+      
+      if (!hasMatchingFeedback) {
+        console.log('[ProjectView] clearing drawing canvas - no nearby feedback');
+        setShowDrawingCanvas(false);
+        setInitialDrawing(null);
+        setCurrentDrawing(null);
       }
     }
   };
@@ -489,16 +568,37 @@ const ProjectView: React.FC = () => {
   };  const handleSeek = (time: number) => {
     setTimeToSeek(time);
     setCurrentTime(time);
-      // Clear any displayed drawing data when seeking to a different position
+    
+    // Check if there's feedback at this time (within 1 second tolerance)
+    const hasNearbyFeedback = feedback.some(f => 
+      Math.abs(f.timestamp - time) < 1.0
+    );
+    
+    // If no feedback found near this time, clear the highlight
+    if (!hasNearbyFeedback && highlightedFeedbackId) {
+      setHighlightedFeedbackId(null);
+    }
+    
+    // Clear any displayed drawing data when seeking to a different position
     // unless the user is currently in drawing mode (feedback form is open)
-    if (!isFeedbackFormOpen) {
-      setShowDrawingCanvas(false);
-      setInitialDrawing(null);
-      setCurrentDrawing(null);
-      setIsDisplayingFeedbackDrawing(false);
+    // Always clear if there's no nearby feedback, regardless of form state
+    if (!isFeedbackFormOpen || !hasNearbyFeedback) {
+      // If we're displaying feedback drawing and there's no nearby feedback, clear it
+      if (isDisplayingFeedbackDrawing && !hasNearbyFeedback) {
+        setShowDrawingCanvas(false);
+        setInitialDrawing(null);
+        setCurrentDrawing(null);
+        setIsDisplayingFeedbackDrawing(false);
+      }
+      // If feedback form is not open, clear any drawing
+      else if (!isFeedbackFormOpen) {
+        setShowDrawingCanvas(false);
+        setInitialDrawing(null);
+        setCurrentDrawing(null);
+        setIsDisplayingFeedbackDrawing(false);
+      }
     }
   };
-
   // New function to handle feedback clicks that include drawing data
   const handleFeedbackClick = (timestamp: number, feedbackItem?: Feedback) => {
     setTimeToSeek(timestamp);
@@ -531,14 +631,16 @@ const ProjectView: React.FC = () => {
           // Don't automatically enable drawing mode when viewing existing feedback
           // The drawing will be displayed but the user won't be in edit mode
         }
-      }, 50);} else {
-      // If no drawing data, hide the drawing canvas
+      }, 50);
+    } else {
+      // If no drawing data or no feedback item, clear any displayed drawing
+      console.log('[ProjectView] clearing drawing - no drawing data for feedback');
       setShowDrawingCanvas(false);
       setInitialDrawing(null);
       setCurrentDrawing(null);
       setIsDisplayingFeedbackDrawing(false);
     }
-  };  // Handle feedback highlighting for synchronization between timeline and list
+  };// Handle feedback highlighting for synchronization between timeline and list
   const handleFeedbackHighlight = (feedbackId: string | null) => {
     setHighlightedFeedbackId(feedbackId);
     // No auto-clear - let the highlight persist until manually cleared or another item is highlighted
@@ -557,23 +659,25 @@ const ProjectView: React.FC = () => {
 
   const handleDrawingChange = (drawingData: DrawingData | null) => {
     setCurrentDrawing(drawingData);
-  };
-  const handleCloseFeedbackForm = () => {
+  };  const handleCloseFeedbackForm = () => {
     setIsFeedbackFormOpen(false);
     setShowDrawingCanvas(false);
+    
+    // Always clear all drawing and form states when closing form
+    setCurrentFormComment('');
+    setCurrentFormDrawing(null);
     setCurrentDrawing(null);
     setInitialDrawing(null);
     setIsEditingFeedback(false);
     setEditingFeedbackId(null);
     setInitialComment('');
     setIsDisplayingFeedbackDrawing(false);
-  };
-
-  const handleFeedbackSubmit = async (comment: string, drawingData: DrawingData | null) => {
+  };const handleFeedbackSubmit = async (comment: string, drawingData: DrawingData | null) => {
     if (!user || !projectId) return;
     
     try {
       if (isEditingFeedback && editingFeedbackId) {
+        // Handle editing existing feedback
         await supabase
           .from('feedback')
           .update({
@@ -581,20 +685,75 @@ const ProjectView: React.FC = () => {
             drawing_data: drawingData
           })
           .eq('id', editingFeedbackId);
-      } else {        await supabase
+        
+        // Clear editing state after successful update
+        setIsEditingFeedback(false);
+        setEditingFeedbackId(null);
+        setInitialComment('');
+        setInitialDrawing(null);
+      } else {
+        // Handle creating new feedback with optimistic update
+        const tempId = `temp-${Date.now()}`;
+        const optimisticFeedback = {
+          id: tempId,
+          projectId: projectId,
+          userId: user.id,
+          user: {
+            id: user.id,
+            fullName: user.fullName,
+            avatarUrl: user.avatarUrl
+          },
+          timestamp: currentTime,
+          comment,
+          drawingData,
+          isChecked: false,
+          createdAt: new Date().toISOString(),
+          reactions: [],
+          replies: []
+        };
+        
+        // Optimistically add feedback to UI immediately
+        setFeedback(prevFeedback => 
+          [...prevFeedback, optimisticFeedback].sort((a, b) => a.timestamp - b.timestamp)
+        );
+        
+        // Then submit to database
+        const { error } = await supabase
           .from('feedback')
           .insert({
             project_id: projectId,
-            version_id: currentVersion?.id,
             user_id: user.id,
             timestamp: currentTime,
             comment,
             drawing_data: drawingData,
             is_checked: false
-          });}
+          });
+        
+        if (error) {
+          // Remove optimistic feedback on error
+          setFeedback(prevFeedback => 
+            prevFeedback.filter(f => f.id !== tempId)
+          );
+          throw error;
+        }
+      }
+        // Clear form content after successful submission but keep form open
+      setCurrentFormComment('');
+      setCurrentFormDrawing(null);
+      setCurrentDrawing(null);
       
-      handleCloseFeedbackForm();
-      await fetchFeedback();
+      // Keep feedback form open for easier continuous feedback creation
+      // Only close drawing canvas if not in editing mode
+      if (!isEditingFeedback) {
+        setShowDrawingCanvas(false);
+        setIsDisplayingFeedbackDrawing(false);
+        // Clear initial drawing for next feedback session
+        setInitialDrawing(null);
+      }
+      
+      // Fetch feedback in background to get the real ID and sync with server
+      // This will replace the optimistic update with real data
+      setTimeout(() => fetchFeedback(), 500);
     } catch (err) {
       console.error('Error submitting feedback:', err);
       alert('Failed to submit feedback. Please try again.');
@@ -758,84 +917,6 @@ const ProjectView: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [showDrawingCanvas]);
 
-  // Version management functions
-  const fetchVersions = async () => {
-    if (!projectId) return;
-
-    try {
-      const versionsData = await versionService.getProjectVersions(projectId);
-      setVersions(versionsData);
-      
-      // Get active version or create initial version
-      let activeVersion = await versionService.getActiveVersion(projectId);
-      if (!activeVersion && user && project) {
-        // Create initial version using project's video URL
-        activeVersion = await versionService.createVersion(projectId, user.id, {
-          title: 'Version 1',
-          videoUrl: project.videoUrl,
-          description: 'Initial version'
-        });
-        setVersions([activeVersion]);
-      }
-      
-      if (activeVersion) {
-        setCurrentVersion(activeVersion);
-        // Update video ID when version changes
-        const youtubeId = extractYouTubeId(activeVersion.videoUrl);
-        if (youtubeId) {
-          setVideoId(youtubeId);
-        }
-      }
-    } catch (error) {
-      console.error('Error fetching versions:', error);
-    }
-  };
-
-  const handleVersionSwitch = async (versionId: string) => {
-    const version = versions.find(v => v.id === versionId);
-    if (!version) return;
-
-    try {      // Update active version in database
-      await versionService.switchToVersion(projectId!, versionId);
-      
-      // Update UI state
-      setCurrentVersion(version);
-      
-      // Update video
-      const youtubeId = extractYouTubeId(version.videoUrl);
-      if (youtubeId) {
-        setVideoId(youtubeId);
-      }
-      
-      // Refetch feedback for this version
-      await fetchFeedback();
-    } catch (error) {
-      console.error('Error switching version:', error);
-    }
-  };
-
-  const handleCreateVersion = async (data: { title: string; videoUrl: string; description?: string }) => {
-    if (!user || !projectId) return;
-
-    try {
-      setIsCreatingVersion(true);
-      const newVersion = await versionService.createVersion(projectId, user.id, data);
-      
-      // Update versions list
-      const updatedVersions = await versionService.getProjectVersions(projectId);
-      setVersions(updatedVersions);
-      
-      // Switch to new version
-      await handleVersionSwitch(newVersion.id);
-      
-      setIsNewVersionModalOpen(false);
-    } catch (error) {
-      console.error('Error creating version:', error);
-    } finally {
-      setIsCreatingVersion(false);
-    }
-  };
-
   if (isLoading) {
     return (
       <AppLayout>
@@ -879,19 +960,7 @@ const ProjectView: React.FC = () => {
           <div className="bg-slate-800 rounded-lg shadow-lg p-4 flex-1 min-h-0 flex flex-col overflow-hidden">            <h1 className="text-2xl font-bold text-white mb-2 flex-shrink-0">{project.title}</h1>
             {project.description && (
               <p className="text-slate-300 mb-4 flex-shrink-0">{project.description}</p>
-            )}
-              {/* Version Management */}
-            {versions.length > 0 && currentVersion && (
-              <div className="mb-4 flex-shrink-0">
-                <VersionManager
-                  versions={versions}
-                  currentVersion={currentVersion}
-                  onVersionChange={handleVersionSwitch}
-                  onCreateNewVersion={() => setIsNewVersionModalOpen(true)}
-                  isOwner={user?.id === project.userId}
-                />
-              </div>
-            )}{/* Video container with constrained height and center alignment */}
+            )}            {/* Video container with constrained height and center alignment */}
             <div ref={playerContainerRef} className="relative flex-shrink-0 flex justify-center">              <div 
                 className="bg-black relative lg:max-h-[50vh]"
                 style={{                  aspectRatio: '16/9',
@@ -930,13 +999,12 @@ const ProjectView: React.FC = () => {
                           zIndex: 50, 
                           pointerEvents: 'none' // Allow YouTube UI to be clickable by default
                         }}
-                      >
-                        <DrawingCanvas
+                      >                        <DrawingCanvas
                           width={containerWidth || 640}
                           height={containerHeight || 360}
                           className="absolute top-0 left-0 w-full h-full"
                           onDrawingChange={handleDrawingChange}
-                          initialDrawing={currentDrawing || initialDrawing}
+                          initialDrawing={isEditingFeedback ? initialDrawing : currentDrawing}
                           autoEnableDrawing={true}
                         />
                       </div>
@@ -1009,17 +1077,18 @@ const ProjectView: React.FC = () => {
               </Button>
             </div>            {/* Feedback Form - directly below controls when open */}
             {isFeedbackFormOpen && (
-              <div className="mt-3 flex-shrink-0">
-                <FeedbackForm
+              <div className="mt-3 flex-shrink-0">                <FeedbackForm
                   timestamp={currentTime}
                   onSubmit={handleFeedbackSubmit}
                   onClose={handleCloseFeedbackForm}
-                  initialComment={initialComment}
-                  initialDrawing={currentDrawing || initialDrawing}
+                  initialComment={isEditingFeedback ? initialComment : currentFormComment}
+                  initialDrawing={isEditingFeedback ? initialDrawing : (currentDrawing || currentFormDrawing)}
                   isEditing={isEditingFeedback}
+                  onCommentChange={handleFormCommentChange}
+                  onDrawingChange={handleFormDrawingChange}
                 />
               </div>
-            )}            {/* Instructions for mobile - always visible */}
+            )}{/* Instructions for mobile - always visible */}
             <div className="lg:hidden bg-slate-800 rounded-lg shadow-lg p-4 mt-4 flex-shrink-0">
               <h3 className="text-lg font-semibold text-white mb-2">How to Add Feedback</h3>
               <ol className="list-decimal list-inside text-slate-300 space-y-2 text-sm">
@@ -1042,17 +1111,11 @@ const ProjectView: React.FC = () => {
             onReplyAdd={handleAddReply}
             filterOption={filterOption}
             onFilterChange={setFilterOption}
-            highlightedFeedbackId={highlightedFeedbackId}          />
-        </div>      </div>
+            highlightedFeedbackId={highlightedFeedbackId}
+          />
+        </div>
       </div>
-        {/* New Version Modal */}
-      <NewVersionModal
-        isOpen={isNewVersionModalOpen}
-        onClose={() => setIsNewVersionModalOpen(false)}
-        onSubmit={handleCreateVersion}
-        nextVersionNumber={(versions.length > 0 ? Math.max(...versions.map(v => v.versionNumber)) + 1 : 1)}
-        isLoading={isCreatingVersion}
-      />
+      </div>
     </AppLayout>
   );
 };

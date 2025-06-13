@@ -1,4 +1,3 @@
-import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -9,6 +8,7 @@ import AuthCallback from './pages/AuthCallback';
 import NewProject from './pages/NewProject';
 import Dashboard from './pages/Dashboard';
 import NotFound from './pages/NotFound';
+import Debug from './pages/Debug';
 
 function App() {
   return (
@@ -18,6 +18,7 @@ function App() {
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<Login />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
+          <Route path="/debug" element={<Debug />} />
           <Route path="/dashboard" element={
             <ProtectedRoute>
               <Dashboard />

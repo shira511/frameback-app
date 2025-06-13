@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback, useLayoutEffect } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { HexColorPicker } from 'react-colorful';
 import { Minus, Plus, Pencil, GripHorizontal } from 'lucide-react';
 import type { DrawingData, Line, Point } from '../types';
@@ -97,15 +97,21 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
     canvas.height = height;
     redrawCanvas();
   }, [width, height, redrawCanvas]);
-
   useEffect(() => {
     console.log('[DrawingCanvas] applying initialDrawing', initialDrawing);
-    if (!initialDrawing) return;
-    
-    setLines(initialDrawing.lines);
-    setStrokeColor(initialDrawing.strokeColor);
-    setStrokeWidth(initialDrawing.strokeWidth);
-  }, [initialDrawing]);
+    if (initialDrawing) {
+      setLines(initialDrawing.lines);
+      setStrokeColor(initialDrawing.strokeColor);
+      setStrokeWidth(initialDrawing.strokeWidth);
+    } else {
+      // Clear canvas when initialDrawing is null
+      setLines([]);
+      setStrokeColor('#FF3B30');
+      setStrokeWidth(4);
+      // Also notify parent that drawing is cleared
+      onDrawingChange?.(null);
+    }
+  }, [initialDrawing, onDrawingChange]);
 
   const getCanvasCoordinates = (e: React.MouseEvent | React.TouchEvent): Point => {
     const canvas = canvasRef.current;
@@ -176,7 +182,6 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
       strokeWidth
     });
   };
-
   const handleDrawEnd = () => {
     if (!isDrawing) return;
     console.log('[DrawingCanvas] draw end', { currentLine });
@@ -187,9 +192,14 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
         strokeColor,
         strokeWidth
       };
-      setLines(prev => [...prev, newLine]);
+      
+      // Update lines state first
+      const updatedLines = [...lines, newLine];
+      setLines(updatedLines);
+      
+      // Then notify parent with the updated lines
       onDrawingChange?.({
-        lines: [...lines, newLine],
+        lines: updatedLines,
         strokeColor,
         strokeWidth
       });
@@ -376,9 +386,8 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
       document.body.style.pointerEvents = '';
     };
   }, [isDraggingToolbox, dragStart, toolboxPosition]);
-
-  // Update useLayoutEffect to use persistent positioning and position relative to YouTube video
-  useLayoutEffect(() => {
+  // Update useEffect to use persistent positioning and position relative to YouTube video
+  useEffect(() => {
     if (toolboxRef.current && canvasRef.current) {
       // If we have a stored position and we're not currently dragging, use it
       if (toolboxPosition && !isDraggingToolbox) {
@@ -466,7 +475,7 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
       const isInputFocused = activeElement && (
         activeElement.tagName === 'INPUT' ||
         activeElement.tagName === 'TEXTAREA' ||
-        activeElement.contentEditable === 'true' ||
+        (activeElement as HTMLElement).contentEditable === 'true' ||
         (activeElement as any).isContentEditable
       );
       

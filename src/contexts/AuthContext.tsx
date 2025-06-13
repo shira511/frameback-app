@@ -23,11 +23,16 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
-
-  useEffect(() => {
+  const [error, setError] = useState<Error | null>(null);  useEffect(() => {
     const fetchUser = async () => {
       try {
+        // Check if Supabase is properly configured
+        if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY) {
+          console.warn('AuthProvider: Supabase environment variables not found, skipping auth');
+          setIsLoading(false);
+          return;
+        }
+        
         const { session } = await getSession();
         
         if (!session) {
@@ -85,10 +90,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               avatarUrl: profileData.avatar_url,
             });
           }
-        }
-      } catch (err) {
-        setError(err instanceof Error ? err : new Error('An unknown error occurred'));
-        console.error('Error fetching user:', err);
+        }      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
+        console.error('AuthProvider: Error fetching user:', errorMessage);
+        setError(err instanceof Error ? err : new Error(errorMessage));
       } finally {
         setIsLoading(false);
       }
@@ -109,9 +114,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       authListener.subscription.unsubscribe();
     };
   }, []);
-
   return (
     <AuthContext.Provider value={{ user, isLoading, error }}>
+      {error && (
+        <div className="fixed top-4 right-4 bg-red-500 text-white p-4 rounded-lg shadow-lg z-50 max-w-md">
+          <h3 className="font-bold">Authentication Error:</h3>
+          <p className="text-sm">{error.message}</p>
+          <button 
+            onClick={() => setError(null)}
+            className="mt-2 bg-red-600 hover:bg-red-700 px-2 py-1 rounded text-xs"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
       {children}
     </AuthContext.Provider>
   );
