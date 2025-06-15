@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { ProjectVersion } from '../types';
-import { Plus, Play, Calendar, User, ChevronDown } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
+import { Plus, Play, ChevronDown } from 'lucide-react';
 
 interface VersionManagerProps {
   versions: ProjectVersion[];
@@ -19,54 +18,113 @@ const VersionManager: React.FC<VersionManagerProps> = ({
   isOwner
 }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-
-  // Sort versions by version number (latest first)
   const sortedVersions = [...versions].sort((a, b) => b.versionNumber - a.versionNumber);
 
   return (
-    <div className="bg-slate-800 rounded-lg p-4 mb-4 border border-slate-700">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-lg font-semibold text-white">Project Versions</h3>
-        {isOwner && (
-          <button
-            onClick={onCreateNewVersion}
-            className="flex items-center gap-2 px-3 py-1.5 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors text-sm"
-          >
-            <Plus size={16} />
-            New Version
-          </button>
-        )}
-      </div>
-
-      {/* Current Version Display */}
+    <div className="flex items-center gap-3 py-2">
       <div className="relative">
         <button
           onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-          className="w-full flex items-center justify-between p-3 bg-slate-700 rounded-lg hover:bg-slate-600 transition-colors border border-slate-600"
+          className="flex items-center gap-2 px-3 py-1.5 bg-slate-700 rounded-md hover:bg-slate-600 transition-colors border border-slate-600 text-sm"
         >
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2">
-              <Play size={16} className="text-primary-400" />
+          <Play size={14} className="text-primary-400" />
+          <span className="font-medium text-white">
+            Version {currentVersion.versionNumber}
+          </span>
+          <span className="text-slate-400 text-xs">
+            {currentVersion.title}
+          </span>
+          <ChevronDown size={14} className={`text-slate-400 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
+        </button>
+
+        {isDropdownOpen && (
+          <div className="absolute top-full left-0 mt-1 w-80 bg-slate-800 border border-slate-600 rounded-lg shadow-lg z-50 max-h-60 overflow-y-auto">
+            {sortedVersions.map((version) => (
+              <button
+                key={version.id}
+                onClick={() => {
+                  onVersionChange(version.id);
+                  setIsDropdownOpen(false);
+                }}
+                className={`w-full text-left p-3 hover:bg-slate-700 transition-colors border-b border-slate-700 last:border-b-0 ${
+                  version.id === currentVersion.id ? 'bg-slate-700' : ''
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <Play size={14} className="text-primary-400" />
+                  <span className="font-medium text-white text-sm">
+                    Version {version.versionNumber}
+                  </span>
+                  {version.id === currentVersion.id && (
+                    <span className="px-2 py-0.5 bg-green-500 bg-opacity-20 text-green-400 text-xs rounded-full">
+                      Current
+                    </span>
+                  )}
+                </div>
+                <div className="mt-1">
+                  <div className="text-white text-sm">{version.title}</div>
+                  {version.description && (
+                    <div className="text-slate-400 text-xs mt-1">
+                      {version.description}
+                    </div>
+                  )}
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {isOwner && (
+        <button
+          onClick={onCreateNewVersion}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors text-sm"
+        >
+          <Plus size={14} />
+          New Version
+        </button>
+      )}
+
+      {isDropdownOpen && (
+        <div
+          className="fixed inset-0 z-40"
+          onClick={() => setIsDropdownOpen(false)}
+        />
+      )}
+    </div>
+  );
+};
+
+export default VersionManager;
+  isOwner: boolean;
+}
+
+const VersionManager: React.FC<VersionManagerProps> = ({
+  versions,
+  currentVersion,
+  onVersionChange,
+  onCreateNewVersion,
+  isOwner
+}) => {
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+
+  // Sort versions by version number (latest first)
+  const sortedVersions = [...versions].sort((a, b) => b.versionNumber - a.versionNumber);
+  return (
+    <div className="bg-slate-800 rounded-lg p-3 mb-3 border border-slate-700">
+      <div className="flex items-center justify-between gap-3">
+        {/* Current Version Display - Compact */}
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <div className="relative">
+            <button
+              onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+              className="flex items-center gap-2 px-3 py-2 bg-slate-700 rounded-md hover:bg-slate-600 transition-colors border border-slate-600 text-sm"
+            >              <Play size={14} className="text-primary-400" />
               <span className="font-medium text-white">
                 Version {currentVersion.versionNumber}
               </span>
-              {currentVersion.isActive && (
-                <span className="px-2 py-0.5 bg-green-500 bg-opacity-20 text-green-400 text-xs rounded-full">
-                  Active
-                </span>
-              )}
-            </div>
-            <span className="text-slate-300 text-sm">
-              {currentVersion.title}
-            </span>
-          </div>
-          <ChevronDown 
-            size={16} 
-            className={`text-slate-400 transition-transform ${
-              isDropdownOpen ? 'rotate-180' : ''
-            }`} 
-          />
-        </button>
+              <ChevronDown size={14} className={`text-slate-400 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
+            </button>
 
         {/* Version Dropdown */}
         {isDropdownOpen && (

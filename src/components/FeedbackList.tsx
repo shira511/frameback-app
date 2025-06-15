@@ -1,11 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
-import type { Feedback, FilterOption } from '../types';
+import type { Feedback, FilterOption, ProjectVersion } from '../types';
 import { formatDistanceToNow } from 'date-fns';
-import { Check, MessageSquare, Trash2, Edit2, Smile, CheckCircle2 } from 'lucide-react';
+import { Check, MessageSquare, Trash2, Edit2, Smile, CheckCircle2, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 interface FeedbackListProps {
   feedback: Feedback[];
+  previousVersionsFeedback?: Feedback[];
+  showPreviousVersionsFeedback?: boolean;
+  currentVersion?: ProjectVersion | null;
+  onTogglePreviousVersionsFeedback?: () => void;
   onFeedbackClick: (timestamp: number, feedbackItem?: Feedback) => void;
   onFeedbackStatusChange: (feedbackId: string, isChecked: boolean) => void;
   onFeedbackDelete: (feedbackId: string) => void;
@@ -17,9 +21,12 @@ interface FeedbackListProps {
   highlightedFeedbackId?: string | null;
 }
 
-const FeedbackList: React.FC<FeedbackListProps> = (props) => {
-  const { 
+const FeedbackList: React.FC<FeedbackListProps> = (props) => {  const { 
     feedback, 
+    previousVersionsFeedback = [],
+    showPreviousVersionsFeedback = false,
+    currentVersion,
+    onTogglePreviousVersionsFeedback,
     filterOption, 
     onFilterChange, 
     onFeedbackClick, 
@@ -28,8 +35,7 @@ const FeedbackList: React.FC<FeedbackListProps> = (props) => {
     onFeedbackEdit,
     onReactionAdd,
     onReplyAdd,
-    highlightedFeedbackId 
-  } = props;
+    highlightedFeedbackId  } = props;
   const { user } = useAuth();
   
   const [replyTexts, setReplyTexts] = useState<{ [key: string]: string }>({});
@@ -54,15 +60,19 @@ const FeedbackList: React.FC<FeedbackListProps> = (props) => {
       });
     }
   }, [highlightedFeedbackId]);
-
   const formatTimestamp = (seconds: number): string => {
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = Math.floor(seconds % 60);
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
+
+  // Combine current and previous feedback if enabled
+  const allFeedback = showPreviousVersionsFeedback 
+    ? [...feedback, ...previousVersionsFeedback]
+    : feedback;
   
   // Filter feedback based on current filter option
-  const filteredFeedback = feedback.filter((item) => {
+  const filteredFeedback = allFeedback.filter((item) => {
     if (filterOption === 'unchecked') {
       return !item.isChecked;
     }
@@ -74,24 +84,38 @@ const FeedbackList: React.FC<FeedbackListProps> = (props) => {
     }
     return true;
   });
-
   // Calculate counts for each filter option
-  const allCount = feedback.length;
-  const uncheckedCount = feedback.filter(item => !item.isChecked).length;
-  const checkedCount = feedback.filter(item => item.isChecked).length;
-  const mineCount = user ? feedback.filter(item => item.userId === user.id).length : 0;
+  const allCount = allFeedback.length;
+  const uncheckedCount = allFeedback.filter(item => !item.isChecked).length;
+  const checkedCount = allFeedback.filter(item => item.isChecked).length;
+  const mineCount = user ? allFeedback.filter(item => item.userId === user.id).length : 0;
 
   // Sort feedback by timestamp (chronological order - earliest first)
   const sortedFeedback = [...filteredFeedback].sort((a, b) => {
     return a.timestamp - b.timestamp;
   });
-  
-  return (
+    return (
     <div className="bg-slate-800 rounded-lg shadow-lg overflow-hidden flex flex-col h-full">
-      <div className="p-4 border-b border-slate-700 flex justify-between items-center flex-shrink-0">
-        <h3 className="text-lg font-semibold text-white">
-          Feedback ({sortedFeedback.length})
-        </h3>
+      <div className="p-4 border-b border-slate-700 flex flex-col gap-3 flex-shrink-0">
+        <div className="flex justify-between items-center">
+          <h3 className="text-lg font-semibold text-white">
+            Feedback ({sortedFeedback.length})
+          </h3>          {/* Previous versions toggle button */}
+          {onTogglePreviousVersionsFeedback && previousVersionsFeedback.length > 0 && (
+            <button
+              onClick={onTogglePreviousVersionsFeedback}
+              className={`flex items-center gap-2 px-3 py-1.5 text-sm rounded-md transition-colors font-medium ${
+                showPreviousVersionsFeedback
+                  ? 'bg-yellow-600/20 text-yellow-400 border border-yellow-600/30'
+                  : 'bg-slate-700 text-slate-300 hover:bg-slate-600 hover:text-white'
+              }`}
+              title={`${showPreviousVersionsFeedback ? 'Hide' : 'Show'} previous versions feedback`}
+            >
+              {showPreviousVersionsFeedback ? <EyeOff size={14} /> : <Eye size={14} />}
+              Previous ({previousVersionsFeedback.length})
+            </button>
+          )}
+        </div>
         
         <div className="flex flex-wrap gap-2">
           <button
@@ -140,8 +164,12 @@ const FeedbackList: React.FC<FeedbackListProps> = (props) => {
       <div 
         ref={scrollContainerRef}
         className="divide-y divide-slate-700 flex-1 overflow-y-auto overflow-x-hidden"
-      >
-        {sortedFeedback.map((item) => (          <div 
+      >        {sortedFeedback.map((item) => {
+          // Check if this feedback is from a previous version
+          const isPreviousVersion = currentVersion ? item.versionId !== currentVersion.id : false;
+          
+          return (
+          <div 
             key={item.id}
             ref={el => {
               if (el) {
@@ -150,16 +178,23 @@ const FeedbackList: React.FC<FeedbackListProps> = (props) => {
             }}
             className={`p-4 transition-all duration-300 cursor-pointer ${
               highlightedFeedbackId === item.id 
-                ? 'bg-primary-500/20 border-l-4 border-primary-500 shadow-lg ring-2 ring-primary-500/30' 
-                : 'hover:bg-slate-750'
+                ? isPreviousVersion
+                  ? 'bg-yellow-500/20 border-l-4 border-yellow-500 shadow-lg ring-2 ring-yellow-500/30'
+                  : 'bg-primary-500/20 border-l-4 border-primary-500 shadow-lg ring-2 ring-primary-500/30'
+                : isPreviousVersion
+                  ? 'hover:bg-yellow-500/10 border-l-2 border-yellow-500/30'
+                  : 'hover:bg-slate-750'
             }`}
             onClick={() => onFeedbackClick(item.timestamp, item)}
           >
             {/* Header with user info and timestamp */}
             <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-3">
-                <div className="flex-shrink-0">
-                  <div className="w-8 h-8 bg-gradient-to-br from-primary-500 to-purple-600 rounded-full flex items-center justify-center text-white text-sm font-semibold">
+              <div className="flex items-center gap-3">                <div className="flex-shrink-0">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-semibold ${
+                    isPreviousVersion 
+                      ? 'bg-gradient-to-br from-yellow-500 to-orange-600'
+                      : 'bg-gradient-to-br from-primary-500 to-purple-600'
+                  }`}>
                     {(item.user?.fullName || 'U').charAt(0).toUpperCase()}
                   </div>
                 </div>
@@ -167,11 +202,19 @@ const FeedbackList: React.FC<FeedbackListProps> = (props) => {
                   <div className="flex items-center gap-2">
                     <span className="font-semibold text-white">
                       {item.user?.fullName || 'Unknown User'}
-                    </span>
-                    {item.isChecked && (
-                      <span className="text-xs bg-success-500 bg-opacity-20 text-success-500 px-2 py-0.5 rounded-full flex items-center">
+                    </span>                    {item.isChecked && (
+                      <span className={`text-xs px-2 py-0.5 rounded-full flex items-center ${
+                        isPreviousVersion 
+                          ? 'bg-yellow-500 bg-opacity-20 text-yellow-500'
+                          : 'bg-success-500 bg-opacity-20 text-success-500'
+                      }`}>
                         <CheckCircle2 size={12} className="mr-1" />
                         Resolved
+                      </span>
+                    )}
+                    {isPreviousVersion && (
+                      <span className="text-xs bg-yellow-500 bg-opacity-20 text-yellow-500 px-2 py-0.5 rounded-full">
+                        Previous Version
                       </span>
                     )}
                   </div>                  <div className="flex items-center gap-2 text-xs text-slate-400">
@@ -399,9 +442,8 @@ const FeedbackList: React.FC<FeedbackListProps> = (props) => {
                   </div>
                 ))}
               </div>
-            )}
-          </div>
-        ))}
+            )}          </div>
+        );})}
         
         {sortedFeedback.length === 0 && (
           <div className="p-8 text-center text-slate-400">

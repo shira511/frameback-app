@@ -6,17 +6,24 @@ const VideoTimeline: React.FC<TimelineProps> = ({
   duration,
   currentTime,
   feedback,
+  previousVersionsFeedback = [],
+  showPreviousVersionsFeedback = false,
+  currentVersion,
   onSeek,
   onFeedbackClick,
   highlightedFeedbackId,
   onFeedbackHighlight,
 }) => {
   const timelineRef = useRef<HTMLDivElement>(null);
-  const progressRef = useRef<HTMLDivElement>(null);
-  const playheadRef = useRef<HTMLDivElement>(null);
+  const progressRef = useRef<HTMLDivElement>(null);  const playheadRef = useRef<HTMLDivElement>(null);
   const [hoverTime, setHoverTime] = useState<number | null>(null);
   const [hoverPosition, setHoverPosition] = useState<number | null>(null);
   const [activeFeedback, setActiveFeedback] = useState<string | null>(null);
+
+  // Combine current and previous feedback if enabled
+  const allFeedback = showPreviousVersionsFeedback 
+    ? [...feedback, ...previousVersionsFeedback]
+    : feedback;
 
   // Convert a time position to a percentage of the timeline
   const timeToPercent = (time: number): number => {
@@ -43,9 +50,8 @@ const VideoTimeline: React.FC<TimelineProps> = ({
     if (!timelineRef.current) return;
     
     const time = positionToTime(e.clientX);
-    
-    // Check if there's feedback near this time (within 1 second tolerance)
-    const nearbyFeedback = feedback.find(f => Math.abs(f.timestamp - time) <= 1);
+      // Check if there's feedback near this time (within 1 second tolerance)
+    const nearbyFeedback = allFeedback.find(f => Math.abs(f.timestamp - time) <= 1);
     
     // If no nearby feedback and we have a highlight clearing function, clear the highlight
     if (!nearbyFeedback && onFeedbackHighlight) {
@@ -78,8 +84,8 @@ const VideoTimeline: React.FC<TimelineProps> = ({
   };  const handleFeedbackClick = (time: number, feedbackId: string, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent timeline click from also triggering
     
-    // Find the feedback item
-    const feedbackItem = feedback.find(f => f.id === feedbackId);
+    // Find the feedback item in all feedback
+    const feedbackItem = allFeedback.find(f => f.id === feedbackId);
     
     // Set highlight for the clicked feedback item
     if (onFeedbackHighlight) {
@@ -125,26 +131,32 @@ const VideoTimeline: React.FC<TimelineProps> = ({
         <div
           ref={playheadRef}
           className="absolute top-0 left-0 h-full w-1 bg-primary-500 will-change-transform backface-visibility-hidden transform-style-preserve-3d transition-transform"
-        ></div>
-          {/* Feedback markers */}
-        {feedback.map((item) => {
+        ></div>          {/* Feedback markers */}        {allFeedback.map((item) => {
           const isHighlighted = highlightedFeedbackId === item.id;
           const isActive = activeFeedback === item.id;
+          const isPreviousVersion = currentVersion ? item.versionId !== currentVersion.id : false;
           
           return (
             <div
               key={item.id}
               className={`absolute w-3 h-3 rounded-full transform -translate-x-1/2 -translate-y-1/2 cursor-pointer z-20 transition-all duration-200 ${
                 isActive || isHighlighted ? 'scale-150' : 'scale-100'
-              }`}
-              style={{
+              }`}              style={{
                 left: `${timeToPercent(item.timestamp)}%`,
                 top: '50%',
-                backgroundColor: item.isChecked ? '#22c55e' : '#4F46E5',
+                backgroundColor: isPreviousVersion 
+                  ? '#f59e0b' // Always yellow for previous versions (regardless of checked status)
+                  : (item.isChecked ? '#22c55e' : '#4F46E5'), // Original colors for current version
                 boxShadow: isActive || isHighlighted 
-                  ? '0 0 0 2px rgba(255, 255, 255, 0.8), 0 0 8px rgba(255, 255, 255, 0.3)' 
+                  ? isPreviousVersion
+                    ? '0 0 0 2px rgba(255, 255, 255, 0.8), 0 0 8px rgba(245, 158, 11, 0.5)'
+                    : '0 0 0 2px rgba(255, 255, 255, 0.8), 0 0 8px rgba(255, 255, 255, 0.3)'
                   : 'none',
-                border: isHighlighted ? '2px solid rgba(255, 255, 255, 0.9)' : 'none'
+                border: isHighlighted 
+                  ? isPreviousVersion
+                    ? '2px solid rgba(245, 158, 11, 0.9)'
+                    : '2px solid rgba(255, 255, 255, 0.9)'
+                  : 'none'
               }}
               onClick={(e) => handleFeedbackClick(item.timestamp, item.id, e)}
               onMouseEnter={() => handleFeedbackMouseEnter(item.id)}

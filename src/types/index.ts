@@ -89,6 +89,9 @@ export interface TimelineProps {
   duration: number;
   currentTime: number;
   feedback: Feedback[];
+  previousVersionsFeedback?: Feedback[];
+  showPreviousVersionsFeedback?: boolean;
+  currentVersion?: ProjectVersion | null;
   onSeek: (time: number) => void;
   onFeedbackClick?: (timestamp: number, feedbackItem?: Feedback) => void;
   highlightedFeedbackId?: string | null;

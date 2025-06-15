@@ -10,11 +10,10 @@ import VideoTimeline from '../components/VideoTimeline';
 import FeedbackList from '../components/FeedbackList';
 import FeedbackForm from '../components/FeedbackForm';
 import DrawingCanvas from '../components/DrawingCanvas';
-import VersionManager from '../components/VersionManager';
 import NewVersionModal from '../components/NewVersionModal';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import Button from '../components/ui/Button';
-import { ArrowLeft, Pause, Play, SkipBack, SkipForward, Plus } from 'lucide-react';
+import { ArrowLeft, Pause, Play, SkipBack, SkipForward, Plus, ChevronDown } from 'lucide-react';
 
 // Define YT namespace for TypeScript
 declare namespace YT {
@@ -31,10 +30,11 @@ const ProjectView: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const { user } = useAuth();
   const navigate = useNavigate();
-    const [project, setProject] = useState<Project | null>(null);
-  const [versions, setVersions] = useState<ProjectVersion[]>([]);
+    const [project, setProject] = useState<Project | null>(null);  const [versions, setVersions] = useState<ProjectVersion[]>([]);
   const [currentVersion, setCurrentVersion] = useState<ProjectVersion | null>(null);
   const [feedback, setFeedback] = useState<Feedback[]>([]);
+  const [previousVersionsFeedback, setPreviousVersionsFeedback] = useState<Feedback[]>([]);
+  const [showPreviousVersionsFeedback, setShowPreviousVersionsFeedback] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -183,8 +183,12 @@ const ProjectView: React.FC = () => {
       } finally {
         setIsLoading(false);
       }
-    };    fetchProjectData();
-  }, [projectId, navigate]);
+    };    fetchProjectData();  }, [projectId, navigate]);  // Effect to refetch feedback when current version changes
+  useEffect(() => {
+    if (currentVersion) {
+      fetchFeedback();
+    }
+  }, [currentVersion]);
 
   // ResizeObserver to watch video container changes
   useEffect(() => {
@@ -237,7 +241,6 @@ const ProjectView: React.FC = () => {
       setTimeout(updateVideoContainerDimensions, 100);
     }
   }, [videoReady]);
-
   useEffect(() => {
     if (!projectId) return;
     
@@ -260,33 +263,63 @@ const ProjectView: React.FC = () => {
     return () => {
       supabase.removeChannel(feedbackSubscription);
     };
-  }, [projectId]);
-
+  }, [projectId, currentVersion]);
   const fetchFeedback = async () => {
     if (!projectId) return;
       try {
-      // Fetch feedback data first
-      let query = supabase
+      // Fetch current version feedback
+      let currentQuery = supabase
         .from('feedback')
         .select('*')
         .eq('project_id', projectId);
       
       // Filter by current version if available
       if (currentVersion) {
-        query = query.eq('version_id', currentVersion.id);
+        currentQuery = currentQuery.eq('version_id', currentVersion.id);
       }
       
-      const { data: feedbackData, error: feedbackError } = await query
+      const { data: currentFeedbackData, error: currentFeedbackError } = await currentQuery
         .order('timestamp', { ascending: true });
       
-      if (feedbackError) throw feedbackError;
+      if (currentFeedbackError) throw currentFeedbackError;      // Fetch previous version feedback (only the immediately previous version)
+      let previousFeedbackData: any[] = [];
+      if (currentVersion && currentVersion.versionNumber > 1) {
+        // Get the immediately previous version (versionNumber - 1)
+        const { data: previousVersion, error: previousVersionError } = await supabase
+          .from('project_versions')
+          .select('id')
+          .eq('project_id', projectId)
+          .eq('version_number', currentVersion.versionNumber - 1)
+          .single();
+
+        if (previousVersionError) {
+          console.error('Error fetching previous version:', previousVersionError);
+        } else if (previousVersion) {
+          // Fetch feedback for the immediately previous version only
+          const { data: prevFeedback, error: prevFeedbackError } = await supabase
+            .from('feedback')
+            .select('*')
+            .eq('project_id', projectId)
+            .eq('version_id', previousVersion.id)
+            .order('timestamp', { ascending: true });
+          
+          if (prevFeedbackError) {
+            console.error('Error fetching previous version feedback:', prevFeedbackError);
+          } else {
+            previousFeedbackData = prevFeedback || [];
+          }
+        }
+      }
+
+      // Always include previous feedback for processing, but display control is handled in UI
+      const allFeedbackData = [...(currentFeedbackData || []), ...previousFeedbackData];
       
-      if (!feedbackData) {
+      if (!allFeedbackData || allFeedbackData.length === 0) {
         setFeedback([]);
+        setPreviousVersionsFeedback([]);
         return;
       }
-      
-      const userIds = Array.from(new Set(feedbackData.map(item => item.user_id)));
+        const userIds = Array.from(new Set(allFeedbackData.map((item: any) => item.user_id)));
       
       const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
@@ -297,7 +330,7 @@ const ProjectView: React.FC = () => {
       
       const userProfiles = profilesData || [];
       
-      const feedbackIds = feedbackData.map(item => item.id);
+      const feedbackIds = allFeedbackData.map((item: any) => item.id);
       
       const { data: reactionsData, error: reactionsError } = await supabase
         .from('reactions')
@@ -315,7 +348,7 @@ const ProjectView: React.FC = () => {
       if (repliesError) throw repliesError;
       
       const replyUserIds = repliesData 
-        ? Array.from(new Set(repliesData.map(reply => reply.user_id)))
+        ? Array.from(new Set(repliesData.map((reply: any) => reply.user_id)))
         : [];
       
       let replyUserProfiles: any[] = [];
@@ -331,7 +364,7 @@ const ProjectView: React.FC = () => {
         replyUserProfiles = replyProfilesData || [];
       }
       
-      const formattedFeedback: Feedback[] = feedbackData.map(item => {
+      const formattedFeedback: Feedback[] = allFeedbackData.map((item: any) => {
         const userProfile = userProfiles.find(profile => profile.id === item.user_id);
         
         const itemReactions = reactionsData
@@ -386,11 +419,18 @@ const ProjectView: React.FC = () => {
             emoji: reaction.emoji,
             createdAt: reaction.created_at
           })),
-          replies: itemReplies
-        };
+          replies: itemReplies        };
       });
       
-      setFeedback(formattedFeedback);
+      // Separate current version feedback from previous versions feedback
+      const currentVersionFeedback = formattedFeedback.filter(f => 
+        currentVersion && f.versionId === currentVersion.id
+      );
+      
+      const previousVersionsFeedbackList = formattedFeedback.filter(f => 
+        currentVersion && f.versionId !== currentVersion.id
+      );      setFeedback(currentVersionFeedback);
+      setPreviousVersionsFeedback(previousVersionsFeedbackList);
     } catch (err) {
       console.error('Error fetching feedback:', err);
     }
@@ -790,7 +830,6 @@ const ProjectView: React.FC = () => {
       console.error('Error fetching versions:', error);
     }
   };
-
   const handleVersionSwitch = async (versionId: string) => {
     const version = versions.find(v => v.id === versionId);
     if (!version) return;
@@ -800,6 +839,9 @@ const ProjectView: React.FC = () => {
       
       // Update UI state
       setCurrentVersion(version);
+      
+      // Reset previous versions feedback display to hidden when switching versions
+      setShowPreviousVersionsFeedback(false);
       
       // Update video
       const youtubeId = extractYouTubeId(version.videoUrl);
@@ -879,17 +921,36 @@ const ProjectView: React.FC = () => {
           <div className="bg-slate-800 rounded-lg shadow-lg p-4 flex-1 min-h-0 flex flex-col overflow-hidden">            <h1 className="text-2xl font-bold text-white mb-2 flex-shrink-0">{project.title}</h1>
             {project.description && (
               <p className="text-slate-300 mb-4 flex-shrink-0">{project.description}</p>
-            )}
-              {/* Version Management */}
+            )}            {/* Version Management - Inline */}
             {versions.length > 0 && currentVersion && (
-              <div className="mb-4 flex-shrink-0">
-                <VersionManager
-                  versions={versions}
-                  currentVersion={currentVersion}
-                  onVersionChange={handleVersionSwitch}
-                  onCreateNewVersion={() => setIsNewVersionModalOpen(true)}
-                  isOwner={user?.id === project.userId}
-                />
+              <div className="flex items-center gap-3 py-2">
+                {/* Version Selector Dropdown */}
+                <div className="relative">
+                  <select
+                    value={currentVersion.id}
+                    onChange={(e) => handleVersionSwitch(e.target.value)}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-slate-700 border border-slate-600 rounded-md text-white text-sm hover:bg-slate-600 transition-colors appearance-none pr-8"
+                  >
+                    {versions
+                      .sort((a, b) => b.versionNumber - a.versionNumber)
+                      .map((version) => (
+                        <option key={version.id} value={version.id}>
+                          Version {version.versionNumber} - {version.title}
+                        </option>
+                      ))}
+                  </select>
+                  <ChevronDown size={14} className="absolute right-2 top-1/2 transform -translate-y-1/2 text-slate-400 pointer-events-none" />
+                </div>
+                
+                {user?.id === project.userId && (
+                  <button
+                    onClick={() => setIsNewVersionModalOpen(true)}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors text-sm"
+                  >
+                    <Plus size={14} />
+                    New Version
+                  </button>
+                )}
               </div>
             )}{/* Video container with constrained height and center alignment */}
             <div ref={playerContainerRef} className="relative flex-shrink-0 flex justify-center">              <div 
@@ -946,11 +1007,13 @@ const ProjectView: React.FC = () => {
               </div>
             </div>            {/* Timeline - directly below video, same width */}
             {videoReady && containerWidth > 0 && (
-              <div className="mt-3 flex-shrink-0">
-                <VideoTimeline
+              <div className="mt-3 flex-shrink-0">                <VideoTimeline
                   duration={duration}
                   currentTime={currentTime}
                   feedback={feedback}
+                  previousVersionsFeedback={previousVersionsFeedback}
+                  showPreviousVersionsFeedback={showPreviousVersionsFeedback}
+                  currentVersion={currentVersion}
                   onSeek={handleSeek}
                   onFeedbackClick={handleFeedbackClickWithHighlight}
                   highlightedFeedbackId={highlightedFeedbackId}
@@ -1030,10 +1093,12 @@ const ProjectView: React.FC = () => {
               </ol>
             </div>
           </div>
-        </div>        {/* Feedback List - fixed width on the right with constrained height */}
-        <div className="w-full lg:w-72 flex-shrink-0 flex flex-col min-h-0 max-h-full order-last lg:order-none">
-          <FeedbackList
+        </div>        {/* Feedback List - fixed width on the right with constrained height */}        <div className="w-full lg:w-72 flex-shrink-0 flex flex-col min-h-0 max-h-full order-last lg:order-none">          <FeedbackList
             feedback={feedback}
+            previousVersionsFeedback={previousVersionsFeedback}
+            showPreviousVersionsFeedback={showPreviousVersionsFeedback}
+            currentVersion={currentVersion}
+            onTogglePreviousVersionsFeedback={() => setShowPreviousVersionsFeedback(!showPreviousVersionsFeedback)}
             onFeedbackClick={handleFeedbackClickWithHighlight}
             onFeedbackStatusChange={handleFeedbackStatusChange}
             onFeedbackDelete={handleDeleteFeedback}
@@ -1043,7 +1108,7 @@ const ProjectView: React.FC = () => {
             filterOption={filterOption}
             onFilterChange={setFilterOption}
             highlightedFeedbackId={highlightedFeedbackId}          />
-        </div>      </div>
+        </div></div>
       </div>
         {/* New Version Modal */}
       <NewVersionModal

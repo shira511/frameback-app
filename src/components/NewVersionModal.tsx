@@ -16,11 +16,10 @@ const NewVersionModal: React.FC<NewVersionModalProps> = ({
   onSubmit,
   nextVersionNumber,
   isLoading = false
-}) => {
-  const [formData, setFormData] = useState({
+}) => {  const [formData, setFormData] = useState({
     title: `Version ${nextVersionNumber}`,
     videoUrl: '',
-    description: ''
+    description: `Updated version of the project`
   });
 
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
@@ -68,9 +67,13 @@ const NewVersionModal: React.FC<NewVersionModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-slate-800 rounded-lg shadow-xl w-full max-w-md">
-        <div className="flex items-center justify-between p-6 border-b border-slate-700">
-          <h2 className="text-xl font-semibold text-white">Create New Version</h2>
+      <div className="bg-slate-800 rounded-lg shadow-xl w-full max-w-md">        <div className="flex items-center justify-between p-6 border-b border-slate-700">
+          <div>
+            <h2 className="text-xl font-semibold text-white">Create New Version</h2>
+            <p className="text-sm text-slate-400 mt-1">
+              Upload a new video URL to create Version {nextVersionNumber}
+            </p>
+          </div>
           <button
             onClick={onClose}
             className="p-1 hover:bg-slate-700 rounded-md transition-colors"
@@ -92,7 +95,7 @@ const NewVersionModal: React.FC<NewVersionModalProps> = ({
               className={`w-full p-3 bg-slate-700 border ${
                 errors.title ? 'border-red-500' : 'border-slate-600'
               } rounded-md text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent`}
-              placeholder="e.g., Version 2.0 - Fixed audio issues"
+              placeholder="e.g., Version 2 - Updated content"
               disabled={isLoading}
             />
             {errors.title && (
@@ -114,7 +117,7 @@ const NewVersionModal: React.FC<NewVersionModalProps> = ({
               className={`w-full p-3 bg-slate-700 border ${
                 errors.videoUrl ? 'border-red-500' : 'border-slate-600'
               } rounded-md text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent`}
-              placeholder="https://youtube.com/watch?v=..."
+              placeholder="https://youtube.com/watch?v=... or https://youtu.be/..."
               disabled={isLoading}
             />
             {errors.videoUrl && (
@@ -134,7 +137,7 @@ const NewVersionModal: React.FC<NewVersionModalProps> = ({
               onChange={(e) => handleInputChange('description', e.target.value)}
               rows={3}
               className="w-full p-3 bg-slate-700 border border-slate-600 rounded-md text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
-              placeholder="Describe what changed in this version..."
+              placeholder="What's new in this version? (e.g., Fixed audio issues, Added new scenes, Updated graphics)"
               disabled={isLoading}
             />
           </div>
