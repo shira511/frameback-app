@@ -49,6 +49,68 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
   });
 
   console.log('[DrawingCanvas] initial state', { isDrawingMode, lines });
+  // Function to scale drawing data to current canvas size
+  const scaleDrawingData = useCallback((drawingData: DrawingData, currentWidth: number, currentHeight: number): DrawingData => {
+    if (!drawingData.canvasWidth || !drawingData.canvasHeight) {
+      // For legacy data without original dimensions, we need to determine a reasonable default
+      // We'll use a common video resolution as the assumed original size
+      const assumedOriginalWidth = 854; // Common YouTube width for 480p
+      const assumedOriginalHeight = 480; // Common YouTube height for 480p
+      
+      console.warn('[DrawingCanvas] No original canvas dimensions found, assuming legacy data with default size', {
+        assumed: { width: assumedOriginalWidth, height: assumedOriginalHeight },
+        current: { width: currentWidth, height: currentHeight }
+      });
+      
+      const scaleX = currentWidth / assumedOriginalWidth;
+      const scaleY = currentHeight / assumedOriginalHeight;
+      
+      console.log('[DrawingCanvas] Scaling legacy drawing data', {
+        assumedOriginalSize: { width: assumedOriginalWidth, height: assumedOriginalHeight },
+        currentSize: { width: currentWidth, height: currentHeight },
+        scale: { x: scaleX, y: scaleY }
+      });
+
+      const scaledLines = drawingData.lines.map(line => ({
+        ...line,
+        points: line.points.map(point => ({
+          x: point.x * scaleX,
+          y: point.y * scaleY
+        }))
+      }));
+
+      return {
+        ...drawingData,
+        lines: scaledLines,
+        canvasWidth: currentWidth,
+        canvasHeight: currentHeight
+      };
+    }
+
+    const scaleX = currentWidth / drawingData.canvasWidth;
+    const scaleY = currentHeight / drawingData.canvasHeight;
+
+    console.log('[DrawingCanvas] Scaling drawing data', {
+      originalSize: { width: drawingData.canvasWidth, height: drawingData.canvasHeight },
+      currentSize: { width: currentWidth, height: currentHeight },
+      scale: { x: scaleX, y: scaleY }
+    });
+
+    const scaledLines = drawingData.lines.map(line => ({
+      ...line,
+      points: line.points.map(point => ({
+        x: point.x * scaleX,
+        y: point.y * scaleY
+      }))
+    }));
+
+    return {
+      ...drawingData,
+      lines: scaledLines,
+      canvasWidth: currentWidth,
+      canvasHeight: currentHeight
+    };
+  }, []);
 
   useEffect(() => {
     if (autoEnableDrawing) {
@@ -96,13 +158,14 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
     canvas.width = width;
     canvas.height = height;
     redrawCanvas();
-  }, [width, height, redrawCanvas]);
-  useEffect(() => {
+  }, [width, height, redrawCanvas]);  useEffect(() => {
     console.log('[DrawingCanvas] applying initialDrawing', initialDrawing);
-    if (initialDrawing) {
-      setLines(initialDrawing.lines);
-      setStrokeColor(initialDrawing.strokeColor);
-      setStrokeWidth(initialDrawing.strokeWidth);
+    if (initialDrawing && width > 0 && height > 0) {
+      // Scale drawing data to current canvas size
+      const scaledDrawingData = scaleDrawingData(initialDrawing, width, height);
+      setLines(scaledDrawingData.lines);
+      setStrokeColor(scaledDrawingData.strokeColor);
+      setStrokeWidth(scaledDrawingData.strokeWidth);
     } else {
       // Clear canvas when initialDrawing is null
       setLines([]);
@@ -111,7 +174,40 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
       // Also notify parent that drawing is cleared
       onDrawingChange?.(null);
     }
-  }, [initialDrawing, onDrawingChange]);
+  }, [initialDrawing, width, height, scaleDrawingData, onDrawingChange]);
+
+  // Track last canvas size for rescaling
+  const [lastCanvasSize, setLastCanvasSize] = useState<{width: number, height: number} | null>(null);
+  
+  // Effect to rescale existing drawing when canvas size changes (not due to initialDrawing change)
+  useEffect(() => {
+    if (lines.length > 0 && width > 0 && height > 0 && lastCanvasSize && !initialDrawing) {
+      // Only rescale if the size actually changed and we're not applying initialDrawing
+      if (lastCanvasSize.width !== width || lastCanvasSize.height !== height) {
+        console.log('[DrawingCanvas] Rescaling existing drawing due to size change', {
+          from: lastCanvasSize,
+          to: { width, height }
+        });
+        
+        // Create current drawing data with previous canvas size
+        const currentDrawingData: DrawingData = {
+          lines,
+          strokeColor,
+          strokeWidth,
+          canvasWidth: lastCanvasSize.width,
+          canvasHeight: lastCanvasSize.height
+        };
+        
+        const rescaledData = scaleDrawingData(currentDrawingData, width, height);
+        setLines(rescaledData.lines);
+      }
+    }
+    
+    // Update last canvas size when not applying initialDrawing
+    if (width > 0 && height > 0 && !initialDrawing) {
+      setLastCanvasSize({ width, height });
+    }
+  }, [width, height, lines, strokeColor, strokeWidth, scaleDrawingData, lastCanvasSize, initialDrawing]);
 
   const getCanvasCoordinates = (e: React.MouseEvent | React.TouchEvent): Point => {
     const canvas = canvasRef.current;
@@ -196,12 +292,13 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
       // Update lines state first
       const updatedLines = [...lines, newLine];
       setLines(updatedLines);
-      
-      // Then notify parent with the updated lines
+        // Then notify parent with the updated lines
       onDrawingChange?.({
         lines: updatedLines,
         strokeColor,
-        strokeWidth
+        strokeWidth,
+        canvasWidth: width,
+        canvasHeight: height
       });
     }
     

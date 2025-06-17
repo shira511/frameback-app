@@ -21,7 +21,21 @@ interface FeedbackListProps {
   highlightedFeedbackId?: string | null;
 }
 
-const FeedbackList: React.FC<FeedbackListProps> = (props) => {  const { 
+const FeedbackList: React.FC<FeedbackListProps> = (props) => {
+  console.log('🎯 FeedbackList rendered with props:', {
+    feedbackCount: props.feedback?.length || 0,
+    feedback: props.feedback?.map(f => ({
+      id: f.id,
+      comment: f.comment?.substring(0, 30) + '...',
+      timestamp: f.timestamp
+    })) || [],
+    currentVersion: props.currentVersion ? {
+      id: props.currentVersion.id,
+      number: props.currentVersion.versionNumber
+    } : null
+  });
+  
+  const { 
     feedback, 
     previousVersionsFeedback = [],
     showPreviousVersionsFeedback = false,
@@ -65,14 +79,18 @@ const FeedbackList: React.FC<FeedbackListProps> = (props) => {  const {
     const remainingSeconds = Math.floor(seconds % 60);
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
-
   // Combine current and previous feedback if enabled
   const allFeedback = showPreviousVersionsFeedback 
     ? [...feedback, ...previousVersionsFeedback]
     : feedback;
+
+  // Remove duplicates based on ID (in case same feedback appears in both current and previous)
+  const uniqueFeedback = allFeedback.filter((item, index, self) => 
+    index === self.findIndex(f => f.id === item.id)
+  );
   
   // Filter feedback based on current filter option
-  const filteredFeedback = allFeedback.filter((item) => {
+  const filteredFeedback = uniqueFeedback.filter((item) => {
     if (filterOption === 'unchecked') {
       return !item.isChecked;
     }
@@ -83,12 +101,11 @@ const FeedbackList: React.FC<FeedbackListProps> = (props) => {  const {
       return item.userId === user.id;
     }
     return true;
-  });
-  // Calculate counts for each filter option
-  const allCount = allFeedback.length;
-  const uncheckedCount = allFeedback.filter(item => !item.isChecked).length;
-  const checkedCount = allFeedback.filter(item => item.isChecked).length;
-  const mineCount = user ? allFeedback.filter(item => item.userId === user.id).length : 0;
+  });  // Calculate counts for each filter option (using unique feedback)
+  const allCount = uniqueFeedback.length;
+  const uncheckedCount = uniqueFeedback.filter(item => !item.isChecked).length;
+  const checkedCount = uniqueFeedback.filter(item => item.isChecked).length;
+  const mineCount = user ? uniqueFeedback.filter(item => item.userId === user.id).length : 0;
 
   // Sort feedback by timestamp (chronological order - earliest first)
   const sortedFeedback = [...filteredFeedback].sort((a, b) => {
@@ -101,7 +118,9 @@ const FeedbackList: React.FC<FeedbackListProps> = (props) => {  const {
           <h3 className="text-lg font-semibold text-white">
             Feedback ({sortedFeedback.length})
           </h3>          {/* Previous versions toggle button */}
-          {onTogglePreviousVersionsFeedback && previousVersionsFeedback.length > 0 && (
+          {onTogglePreviousVersionsFeedback && 
+           currentVersion && 
+           currentVersion.versionNumber > 1 && (
             <button
               onClick={onTogglePreviousVersionsFeedback}
               className={`flex items-center gap-2 px-3 py-1.5 text-sm rounded-md transition-colors font-medium ${
@@ -109,10 +128,9 @@ const FeedbackList: React.FC<FeedbackListProps> = (props) => {  const {
                   ? 'bg-yellow-600/20 text-yellow-400 border border-yellow-600/30'
                   : 'bg-slate-700 text-slate-300 hover:bg-slate-600 hover:text-white'
               }`}
-              title={`${showPreviousVersionsFeedback ? 'Hide' : 'Show'} previous versions feedback`}
-            >
-              {showPreviousVersionsFeedback ? <EyeOff size={14} /> : <Eye size={14} />}
-              Previous ({previousVersionsFeedback.length})
+              title={`${showPreviousVersionsFeedback ? 'Hide' : 'Show'} previous version feedback (Version ${currentVersion.versionNumber - 1})`}
+            >              {showPreviousVersionsFeedback ? <EyeOff size={14} /> : <Eye size={14} />}
+              Previous {showPreviousVersionsFeedback && previousVersionsFeedback.length > 0 && `(${previousVersionsFeedback.length})`}
             </button>
           )}
         </div>
@@ -165,12 +183,15 @@ const FeedbackList: React.FC<FeedbackListProps> = (props) => {  const {
         ref={scrollContainerRef}
         className="divide-y divide-slate-700 flex-1 overflow-y-auto overflow-x-hidden"
       >        {sortedFeedback.map((item) => {
-          // Check if this feedback is from a previous version
-          const isPreviousVersion = currentVersion ? item.versionId !== currentVersion.id : false;
+          // Check if this feedback is from a previous version by checking if it's in previousVersionsFeedback array
+          const isPreviousVersion = showPreviousVersionsFeedback && 
+            previousVersionsFeedback.some(prevItem => prevItem.id === item.id);
           
-          return (
+          // Create unique key to prevent duplicates when showing current + previous feedback
+          const uniqueKey = `${item.id}-${isPreviousVersion ? 'prev' : 'curr'}`;
+            return (
           <div 
-            key={item.id}
+            key={uniqueKey}
             ref={el => {
               if (el) {
                 feedbackRefs.current[item.id] = el;
@@ -202,7 +223,7 @@ const FeedbackList: React.FC<FeedbackListProps> = (props) => {  const {
                   <div className="flex items-center gap-2">
                     <span className="font-semibold text-white">
                       {item.user?.fullName || 'Unknown User'}
-                    </span>                    {item.isChecked && (
+                    </span>{item.isChecked && (
                       <span className={`text-xs px-2 py-0.5 rounded-full flex items-center ${
                         isPreviousVersion 
                           ? 'bg-yellow-500 bg-opacity-20 text-yellow-500'

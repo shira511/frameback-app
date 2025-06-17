@@ -1,21 +1,56 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { supabase } from '../services/supabase';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 
 const AuthCallback: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(true);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   useEffect(() => {
-    // After Supabase auth redirect, just navigate to the dashboard
-    // AuthContext will handle the session
-    const timer = setTimeout(() => {
-      navigate('/dashboard');
-    }, 1000);
+    const handleAuthCallback = async () => {
+      try {
+        console.log('Processing auth callback...');
+        
+        // URLからエラーパラメータをチェック
+        const errorParam = searchParams.get('error');
+        const errorDescription = searchParams.get('error_description');
+        
+        if (errorParam) {
+          console.error('OAuth error:', errorParam, errorDescription);
+          setError(`Authentication failed: ${errorDescription || errorParam}`);
+          setIsProcessing(false);
+          return;
+        }
 
-    return () => clearTimeout(timer);
-  }, [navigate]);
+        // Supabaseセッションを確認
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError) {
+          console.error('Session error:', sessionError);
+          setError(`Session error: ${sessionError.message}`);
+          setIsProcessing(false);
+          return;
+        }
 
+        if (session) {
+          console.log('Authentication successful:', session.user.email);
+          navigate('/dashboard', { replace: true });
+        } else {
+          console.log('No session found, redirecting to login');
+          navigate('/login', { replace: true });
+        }
+      } catch (err) {
+        console.error('Auth callback error:', err);
+        setError('An unexpected error occurred during authentication');
+        setIsProcessing(false);
+      }
+    };
+
+    handleAuthCallback();
+  }, [navigate, searchParams]);
   if (error) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4 bg-slate-900">
@@ -31,6 +66,10 @@ const AuthCallback: React.FC = () => {
         </div>
       </div>
     );
+  }
+
+  if (!isProcessing) {
+    return null; // Error state already handled above
   }
 
   return (

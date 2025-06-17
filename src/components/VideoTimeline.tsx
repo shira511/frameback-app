@@ -14,8 +14,15 @@ const VideoTimeline: React.FC<TimelineProps> = ({
   highlightedFeedbackId,
   onFeedbackHighlight,
 }) => {
+  console.log('📺 VideoTimeline rendered with:', {
+    feedbackCount: feedback?.length || 0,
+    duration,
+    currentTime,
+    feedback: feedback?.map(f => ({ id: f.id, timestamp: f.timestamp })) || []
+  });
+  
   const timelineRef = useRef<HTMLDivElement>(null);
-  const progressRef = useRef<HTMLDivElement>(null);  const playheadRef = useRef<HTMLDivElement>(null);
+  const progressRef = useRef<HTMLDivElement>(null);const playheadRef = useRef<HTMLDivElement>(null);
   const [hoverTime, setHoverTime] = useState<number | null>(null);
   const [hoverPosition, setHoverPosition] = useState<number | null>(null);
   const [activeFeedback, setActiveFeedback] = useState<string | null>(null);

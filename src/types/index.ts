@@ -31,6 +31,8 @@ export interface DrawingData {
   lines: Line[];
   strokeWidth: number;
   strokeColor: string;
+  canvasWidth?: number;
+  canvasHeight?: number;
 }
 
 export interface Line {

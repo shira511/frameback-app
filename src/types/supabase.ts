@@ -41,6 +41,7 @@ export interface Database {
           created_at: string
           project_id: string
           user_id: string
+          version_id: string | null
           timestamp: number
           comment: string
           drawing_data: Json | null
@@ -51,6 +52,7 @@ export interface Database {
           created_at?: string
           project_id: string
           user_id: string
+          version_id?: string | null
           timestamp: number
           comment: string
           drawing_data?: Json | null
@@ -61,6 +63,7 @@ export interface Database {
           created_at?: string
           project_id?: string
           user_id?: string
+          version_id?: string | null
           timestamp?: number
           comment?: string
           drawing_data?: Json | null
@@ -110,7 +113,44 @@ export interface Database {
           created_at?: string
           feedback_id?: string
           user_id?: string
-          emoji?: string
+          emoji?: string        }
+      }
+      project_versions: {
+        Row: {
+          id: string
+          project_id: string
+          user_id: string
+          version_number: number
+          title: string
+          video_url: string
+          description: string | null
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          project_id: string
+          user_id: string
+          version_number: number
+          title: string
+          video_url: string
+          description?: string | null
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          project_id?: string
+          user_id?: string
+          version_number?: number
+          title?: string
+          video_url?: string
+          description?: string | null
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
         }
       }
       profiles: {

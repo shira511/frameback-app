@@ -21,12 +21,27 @@ export { supabase };
 // Authentication helper functions
 export const signInWithGoogle = async () => {
   try {
+    // 環境に応じたリダイレクトURL設定
+    const baseUrl = window.location.origin;
+    const callbackUrl = `${baseUrl}/auth/callback`;
+
+    console.log('OAuth redirect URL:', callbackUrl);
+
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo: callbackUrl,
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'consent',
+        }
       },
     });
+    
+    if (error) {
+      console.error('OAuth sign-in error:', error);
+    }
+    
     return { data, error };
   } catch (err) {
     console.error('signInWithGoogle error:', err);

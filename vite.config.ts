@@ -14,4 +14,9 @@ export default defineConfig({
     outDir: 'dist',
     emptyOutDir: true,
   },
+  server: {
+    port: 5173,
+    host: true,
+    strictPort: true, // ポートが使用中の場合は失敗させる（自動的に別ポートを使わない）
+  },
 });

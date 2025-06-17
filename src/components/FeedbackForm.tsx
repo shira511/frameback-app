@@ -11,6 +11,7 @@ interface FeedbackFormProps {
   isEditing?: boolean;
   onCommentChange?: (comment: string) => void;
   onDrawingChange?: (drawing: DrawingData | null) => void;
+  onDrawingModeToggle?: () => void;
 }
 
 const FeedbackForm: React.FC<FeedbackFormProps> = ({
@@ -22,7 +23,8 @@ const FeedbackForm: React.FC<FeedbackFormProps> = ({
   isEditing = false,
   onCommentChange,
   onDrawingChange,
-}) => {  const [comment, setComment] = useState(initialComment);
+  onDrawingModeToggle,
+}) => {const [comment, setComment] = useState(initialComment);
   const [drawingData, setDrawingData] = useState<DrawingData | null>(initialDrawing);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -66,7 +68,8 @@ const FeedbackForm: React.FC<FeedbackFormProps> = ({
   };  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!comment.trim()) {
+    // Allow submission if either comment exists or drawing data exists
+    if (!comment.trim() && !drawingData) {
       return;
     }
     
@@ -129,21 +132,31 @@ const FeedbackForm: React.FC<FeedbackFormProps> = ({
               value={comment}
               onChange={handleCommentChange}
               onKeyDown={handleKeyDown}
-              placeholder="What would you like to say about this frame?"              className="w-full p-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 resize-none text-sm"
-              rows={2}
-              required
+              placeholder="Add a comment to your feedback (optional if you have a drawing)"              className="w-full p-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 resize-none text-sm"              rows={2}
             />
             <div className="mt-1 text-xs text-slate-400">
               <kbd className="px-1 py-0.5 bg-slate-600 rounded text-xs">Ctrl+Enter</kbd> to submit
             </div>
           </div>
-          
-          {/* Buttons - responsive layout */}
+            {/* Buttons - responsive layout */}
           <div className="flex flex-row sm:flex-col gap-2 flex-shrink-0 w-full sm:w-auto">
+            {/* Drawing Mode button */}
+            {onDrawingModeToggle && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onDrawingModeToggle}
+                disabled={isSubmitting}
+                className="px-4 py-2 text-sm min-w-[120px] flex-1 sm:flex-initial bg-purple-600 hover:bg-purple-700 border-purple-600 text-white"
+              >
+                {drawingData ? 'Edit Drawing' : 'Drawing Mode'}
+              </Button>
+            )}
+            
             <Button
               type="submit"
               isLoading={isSubmitting}
-              disabled={isSubmitting || !comment.trim()}
+              disabled={isSubmitting || (!comment.trim() && !drawingData)}
               className="px-4 py-2 text-sm min-w-[80px] flex-1 sm:flex-initial"
             >
               {isEditing ? 'Update' : 'Submit'}

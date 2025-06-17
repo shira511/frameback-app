@@ -18,10 +18,9 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title }) => {
     navigate('/');
   };
   return (
-    <div className="min-h-screen flex flex-col bg-slate-900 h-screen overflow-hidden">
-      {/* Header */}
+    <div className="min-h-screen flex flex-col bg-slate-900 h-screen overflow-hidden">      {/* Header */}
       <header className="bg-slate-800 shadow-md flex-shrink-0">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
+        <div className="max-w-none mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
           <div className="flex items-center gap-2">
             <button 
               onClick={() => navigate('/dashboard')} 
@@ -64,9 +63,10 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title }) => {
               </div>
             </div>
           )}
-        </div>
-      </header>      {/* Main content */}
-      <main className="flex-1 w-full px-4 sm:px-6 lg:px-8 py-8 overflow-auto min-h-0">
+        </div>      </header>
+
+      {/* Main content */}
+      <main className="flex-1 w-full px-2 sm:px-4 lg:px-6 py-4 overflow-auto min-h-0">
         {children}
       </main>
 

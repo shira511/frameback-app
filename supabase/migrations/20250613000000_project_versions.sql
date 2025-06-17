@@ -16,6 +16,10 @@ CREATE TABLE IF NOT EXISTS project_versions (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_project_versions_unique 
 ON project_versions(project_id, version_number);
 
+-- 各プロジェクトごとに1つのアクティブバージョンのみを許可
+CREATE UNIQUE INDEX IF NOT EXISTS idx_project_versions_active_unique
+ON project_versions(project_id) WHERE is_active = true;
+
 -- アクティブバージョンのインデックス
 CREATE INDEX IF NOT EXISTS idx_project_versions_active 
 ON project_versions(project_id, is_active) WHERE is_active = true;
@@ -41,9 +45,27 @@ USING (
   )
 );
 
--- プロジェクトの所有者はバージョンを作成・更新可能
-CREATE POLICY "Project owners can manage versions" 
-ON project_versions FOR ALL 
+-- プロジェクトの所有者はバージョンを作成・更新・削除可能
+CREATE POLICY "Project owners can insert versions" 
+ON project_versions FOR INSERT 
+WITH CHECK (
+  project_id IN (
+    SELECT id FROM projects 
+    WHERE user_id = auth.uid()
+  )
+);
+
+CREATE POLICY "Project owners can update versions" 
+ON project_versions FOR UPDATE 
+USING (
+  project_id IN (
+    SELECT id FROM projects 
+    WHERE user_id = auth.uid()
+  )
+);
+
+CREATE POLICY "Project owners can delete versions" 
+ON project_versions FOR DELETE 
 USING (
   project_id IN (
     SELECT id FROM projects 
@@ -67,3 +89,18 @@ $$ language 'plpgsql';
 CREATE TRIGGER update_project_versions_updated_at 
 BEFORE UPDATE ON project_versions 
 FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- バージョン番号の競合を防ぐためのヘルパー関数
+CREATE OR REPLACE FUNCTION get_next_version_number(p_project_id UUID)
+RETURNS INTEGER AS $$
+DECLARE
+    next_version INTEGER;
+BEGIN
+    SELECT COALESCE(MAX(version_number), 0) + 1 
+    INTO next_version
+    FROM project_versions 
+    WHERE project_id = p_project_id;
+    
+    RETURN next_version;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
