@@ -110,9 +110,8 @@ const FeedbackList: React.FC<FeedbackListProps> = (props) => {
   // Sort feedback by timestamp (chronological order - earliest first)
   const sortedFeedback = [...filteredFeedback].sort((a, b) => {
     return a.timestamp - b.timestamp;
-  });
-    return (
-    <div className="bg-slate-800 rounded-lg shadow-lg overflow-hidden flex flex-col h-full">
+  });    return (
+    <div className="bg-slate-800 rounded-lg shadow-lg overflow-hidden flex flex-col h-full max-h-full">
       <div className="p-4 border-b border-slate-700 flex flex-col gap-3 flex-shrink-0">
         <div className="flex justify-between items-center">
           <h3 className="text-lg font-semibold text-white">
@@ -177,12 +176,14 @@ const FeedbackList: React.FC<FeedbackListProps> = (props) => {
             Mine ({mineCount})
           </button>
         </div>
-      </div>
-
-      <div 
+      </div>      <div 
         ref={scrollContainerRef}
-        className="divide-y divide-slate-700 flex-1 overflow-y-auto overflow-x-hidden"
-      >        {sortedFeedback.map((item) => {
+        className="divide-y divide-slate-700 flex-1 overflow-y-auto overflow-x-hidden scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-800"
+        style={{
+          scrollbarWidth: 'thin',
+          scrollbarColor: '#4B5563 #1E293B'
+        }}
+      >{sortedFeedback.map((item) => {
           // Check if this feedback is from a previous version by checking if it's in previousVersionsFeedback array
           const isPreviousVersion = showPreviousVersionsFeedback && 
             previousVersionsFeedback.some(prevItem => prevItem.id === item.id);

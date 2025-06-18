@@ -72,11 +72,14 @@ const ProjectView: React.FC = () => {
 
   // Filter and highlight state
   const [filterOption, setFilterOption] = useState<FilterOption>('all');
-  const [highlightedFeedbackId, setHighlightedFeedbackId] = useState<string | null>(null);
-
-  // Refs
+  const [highlightedFeedbackId, setHighlightedFeedbackId] = useState<string | null>(null);  // Refs
   const playerContainerRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<YT.Player>();
+  const leftColumnRef = useRef<HTMLDivElement>(null);
+  const rightColumnRef = useRef<HTMLDivElement>(null);
+  const feedbackListRef = useRef<HTMLDivElement>(null);
+  const videoAreaRef = useRef<HTMLDivElement>(null);
+  const feedbackFormRef = useRef<HTMLDivElement>(null);
   
   // Debug: Monitor feedback data changes
   useEffect(() => {
@@ -103,7 +106,6 @@ const ProjectView: React.FC = () => {
       setSelectedFeedbackDrawing(null);
     }
   }, [highlightedFeedbackId]);
-
   // Clear selected feedback drawing when timeline position changes and no feedback exists at that time
   useEffect(() => {
     // Only check if we have a selected feedback drawing and we're not actively seeking
@@ -122,9 +124,50 @@ const ProjectView: React.FC = () => {
       }
     }
   }, [currentTime, selectedFeedbackDrawing, feedback, highlightedFeedbackId]);
+  // Dynamic height adjustment - sync right column height with left column
+  useEffect(() => {
+    const adjustHeight = () => {
+      if (videoAreaRef.current && feedbackFormRef.current && feedbackListRef.current) {        const videoAreaHeight = videoAreaRef.current.offsetHeight;
+        const feedbackFormHeight = feedbackFormRef.current.offsetHeight;
+        const marginBetween = 16; // mt-4 = 16px
+        
+        const totalHeight = videoAreaHeight + marginBetween + feedbackFormHeight;
+        
+        console.log('[ProjectView] Video area height:', videoAreaHeight);
+        console.log('[ProjectView] Feedback form height:', feedbackFormHeight);
+        console.log('[ProjectView] Total height for feedback list:', totalHeight);
+        
+        // Apply the calculated height to the feedback list container
+        feedbackListRef.current.style.height = `${totalHeight}px`;
+        feedbackListRef.current.style.maxHeight = `${totalHeight}px`;
+      }
+    };
 
-  const handlePlayerReady = (player: YT.Player) => {
+    // Adjust height on mount and when window resizes
+    adjustHeight();
+    window.addEventListener('resize', adjustHeight);
+
+    // Also adjust when project data changes (video loads, etc.)
+    const timer = setTimeout(adjustHeight, 100);
+
+    return () => {
+      window.removeEventListener('resize', adjustHeight);
+      clearTimeout(timer);
+    };
+  }, [project, currentVersion, feedback, showDrawingCanvas, isEditingFeedback]);  const handlePlayerReady = (player: YT.Player) => {
     playerRef.current = player;
+    // Trigger height adjustment when player is ready
+    setTimeout(() => {
+      if (videoAreaRef.current && feedbackFormRef.current && feedbackListRef.current) {
+        const videoAreaHeight = videoAreaRef.current.offsetHeight;
+        const feedbackFormHeight = feedbackFormRef.current.offsetHeight;
+        const marginBetween = 16; // mt-4 = 16px
+        const totalHeight = videoAreaHeight + marginBetween + feedbackFormHeight;
+        
+        feedbackListRef.current.style.height = `${totalHeight}px`;
+        feedbackListRef.current.style.maxHeight = `${totalHeight}px`;
+      }
+    }, 100);
   };
 
   // Video control handlers
@@ -217,13 +260,11 @@ const ProjectView: React.FC = () => {
         </div>
       </AppLayout>
     );
-  }
-  // Main render
+  }  // Main render
   return (
     <AppLayout>
-      <div className="max-w-none mx-auto px-6 py-6 h-full">
-        {/* Header */}
-        <div className="mb-6 flex items-center justify-between">
+      <div className="max-w-none mx-auto px-6 py-6 h-screen flex flex-col">        {/* Header */}
+        <div className="mb-6 flex items-center justify-between flex-shrink-0">
           <div className="flex items-center space-x-4">
             <Button onClick={handleGoBack} variant="outline" size="sm">
               <ArrowLeft className="w-4 h-4 mr-2" />
@@ -248,13 +289,10 @@ const ProjectView: React.FC = () => {
               Create New Version
             </Button>
           )}
-        </div>
-
-        {/* Main Content Grid */}
-        <div className="grid grid-cols-1 xl:grid-cols-4 gap-6 h-full">
-          {/* Left Column - Video Player */}
-          <div className="xl:col-span-3">
-            <div className="bg-gray-800 rounded-lg shadow-sm border border-gray-700 p-4 mb-4">              <div ref={playerContainerRef} className="relative">
+        </div>        {/* Main Content Grid */}
+        <div className="grid grid-cols-1 xl:grid-cols-4 gap-6 flex-1 min-h-0">          {/* Left Column - Video Player */}
+          <div ref={leftColumnRef} className="xl:col-span-3 flex flex-col">
+            <div ref={videoAreaRef} className="bg-gray-800 rounded-lg shadow-sm border border-gray-700 p-4 flex-shrink-0">              <div ref={playerContainerRef} className="relative">
                 {currentVersion?.videoUrl && (
                   <VideoPlayer
                     videoId={extractYouTubeId(currentVersion.videoUrl) || ''}
@@ -337,10 +375,9 @@ const ProjectView: React.FC = () => {
                   <Button variant="outline" size="sm" onClick={handleFrameForward} title="1フレーム進む">
                     <ChevronRight className="w-4 h-4" />
                   </Button></div>
-              </div>
-            </div>            
-            {/* Feedback Form - Always visible below video */}
-            <div className="bg-gray-800 rounded-lg shadow-sm border border-gray-700 p-4">
+              </div>            </div>
+              {/* Feedback Form - Always visible below video */}
+            <div ref={feedbackFormRef} className="bg-gray-800 rounded-lg shadow-sm border border-gray-700 p-4 flex-shrink-0 mt-4">
               <FeedbackForm
                 timestamp={currentTime}
                 onSubmit={async (comment, drawing) => {
@@ -411,11 +448,10 @@ const ProjectView: React.FC = () => {
                 initialDrawing={isEditingFeedback ? initialDrawing : currentDrawing}
                 isEditing={isEditingFeedback}
               />
-            </div></div>{/* Right Column - Feedback */}
-          <div className="space-y-4 h-full">
-            {/* Feedback Error Display */}
+            </div></div>          {/* Right Column - Feedback */}
+          <div ref={rightColumnRef} className="flex flex-col gap-4">{/* Feedback Error Display */}
             {feedbackError && (
-              <div className="bg-red-900/50 border border-red-600 rounded-lg p-4 text-red-300">
+              <div className="bg-red-900/50 border border-red-600 rounded-lg p-4 text-red-300 flex-shrink-0">
                 <div className="flex justify-between items-start">
                   <span>{feedbackError}</span>
                   <button
@@ -425,10 +461,9 @@ const ProjectView: React.FC = () => {
                     ×
                   </button>
                 </div>
-              </div>            )}
-            
-            {/* Feedback List */}
-            <div className="bg-gray-800 rounded-lg shadow-sm border border-gray-700 p-4 h-full flex flex-col">
+              </div>
+            )}            {/* Feedback List */}
+            <div ref={feedbackListRef} className="bg-gray-800 rounded-lg shadow-sm border border-gray-700 p-4 flex flex-col overflow-hidden">
               <div className="flex items-center justify-between mb-4 flex-shrink-0">
                 <h3 className="text-lg font-semibold text-white">Feedback</h3>
                 <select
@@ -440,9 +475,9 @@ const ProjectView: React.FC = () => {
                   <option value="text">Text Only</option>
                   <option value="drawing">With Drawing</option>
                 </select>
-              </div>              <div className="flex-1 overflow-hidden">
+              </div>              <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0">
                 <FeedbackList
-                feedback={feedback}                onFeedbackClick={(timestamp, feedbackItem) => {
+                feedback={feedback}onFeedbackClick={(timestamp, feedbackItem) => {
                   setTimeToSeek(timestamp);
                   if (feedbackItem) {
                     setHighlightedFeedbackId(feedbackItem.id);
@@ -479,13 +514,12 @@ const ProjectView: React.FC = () => {
                   console.log('Reply added:', feedbackId, comment);
                 }}
                 highlightedFeedbackId={highlightedFeedbackId}
-                filterOption={filterOption}
-                onFilterChange={setFilterOption}
+                filterOption={filterOption}                onFilterChange={setFilterOption}
                 />
               </div>
             </div>
           </div>
-        </div>        {/* New Version Modal */}
+        </div>{/* New Version Modal */}
         <NewVersionModal
           isOpen={isNewVersionModalOpen}
           onClose={() => setIsNewVersionModalOpen(false)}          onSubmit={async (versionData) => {
